@@ -2,9 +2,6 @@ import numpy as np
 import time
 import multiprocessing as mp
 from multiprocessing.sharedctypes import RawArray
-
-from numpy.ma.core import shape
-
 from multiprocessing_experience_collection.environment_process import run_env
 from multiprocessing_experience_collection import EnvProcessMemoryInterface, CollectorProcessInterface
 
@@ -20,7 +17,7 @@ class RandomAgent(object):
         return self.torch.as_tensor(self.rng.randint(0, self.n_acts, obs.shape[0]), dtype=self.torch.long)
 
 
-class MultiprocessExperienceCollector(object):
+class ExperienceCollector(object):
     def __init__(self, num_procs, num_floats_per_process, config, inference_buffer_size, obs_stack_size,
                  device="cpu", training_reward_ema=0.9):
 
@@ -32,12 +29,15 @@ class MultiprocessExperienceCollector(object):
         self._torch = None
         self._obs_tensor = None
         self._obs_shape = None
-        self._waiting_pids = []
-        self._current_idx = 0
         self._random_agent = None
         self._training_reward_ema = training_reward_ema
         self._training_reward = None
-        self.overflow = []
+
+        self._waiting_observations = []
+        self._waiting_timesteps = []
+        self._waiting_pids = []
+        self._action_pids = []
+        self._buffer_idx = 0
 
         # self.loggable_timers = {}
         # self.reset_loggable_timers()
@@ -58,10 +58,13 @@ class MultiprocessExperienceCollector(object):
 
         # Collect all the initial observations.
         initial_obs_group = []
+        initial_pids = []
         for pid, interface in self._running_processes.items():
             # Wait for reset.
-            obs, n_agents = interface.wait_for_reset_obs(self._new_timestep)
-            initial_obs_group.append(obs)
+            obs = interface.wait_for_reset_obs(self._new_timestep)
+            for i in range(interface.current_n_agents):
+                initial_obs_group.append(obs[i])
+                initial_pids.append(pid)
 
             # Obs shape should be (n_agents, *obs_shape)
             self._obs_shape = obs.shape[1:]
@@ -70,12 +73,12 @@ class MultiprocessExperienceCollector(object):
 
         # Initial obs should now be (n_procs, n_agents, *obs_shape), so the actions will be (n_procs, n_agents, 1),
         actions = agent.forward(initial_obs)
-
-        for pid, interface in self._running_processes.items():
-            if interface.send_action(actions[pid]) == EnvProcessMemoryInterface.PROC_CRASHED_FLAG:
-                print("PROC {} CRASHED".format(pid))
-                interface.close()
-                del self._running_processes[pid]
+        for i in range(len(initial_pids)):
+            error_code = self._running_processes[initial_pids[i]].send_action(actions[i])
+            if error_code == EnvProcessMemoryInterface.PROC_CRASHED_FLAG:
+                print("PROC {} CRASHED".format(initial_pids[i]))
+                self._running_processes[initial_pids[i]].close()
+                del self._running_processes[initial_pids[i]]
 
         self._obs_tensor = self._torch.zeros((self._inference_buffer_size, *self._obs_shape),
                                              dtype=self._torch.float32, device=self._device)
@@ -85,88 +88,69 @@ class MultiprocessExperienceCollector(object):
             agent = self._random_agent
 
         n_collected = 0
-        obs_tensor = self._obs_tensor
-        procs = self._running_processes
-        new_timestep = self._new_timestep
+        waiting_observations = self._waiting_observations
+        waiting_timesteps = self._waiting_timesteps
+        waiting_pids = self._waiting_pids
+        action_pids = self._action_pids
+        buffer_idx = self._buffer_idx
 
-        pids = self._waiting_pids
-        idx = self._current_idx
-        overflow = self.overflow
+        while n_collected < n_timesteps:
+            for pid, interface in self._running_processes.items():
+                data = interface.receive_env_step(self._new_timestep)
+                if data == EnvProcessMemoryInterface.PROC_CRASHED_FLAG:
+                    print("PROC {} CRASHED".format(pid))
+                    interface.close()
+                    del self._running_processes[pid]
 
-        while len(overflow) > 0 and n_collected < n_timesteps and exp_buffer is not None:
-            timestep = overflow.pop(0)
-            exp_buffer.extend(timestep)
-            n_collected += 1
+                elif type(data) is tuple:
+                    timesteps, obs_stack = data
+                    for i in range(len(timesteps)):
+                        waiting_timesteps.append(timesteps[i])
+                        waiting_observations.append(obs_stack[i])
+                        waiting_pids.append(pid)
 
-        with ((self._torch.no_grad())):
-            while n_collected < n_timesteps:
-                for pid, interface in procs.items():
-                    # t1 = time.perf_counter()
-                    data = interface.receive_env_step(new_timestep)
-                    # self.loggable_timers["Receive Env Step Time"].append(time.perf_counter() - t1)
+            for _ in range(len(waiting_timesteps)):
+                timestep = waiting_timesteps.pop(0)
+                obs = waiting_observations.pop(0)
+                pid = waiting_pids.pop(0)
 
-                    if data == EnvProcessMemoryInterface.PROC_CRASHED_FLAG:
-                        print("PROC {} CRASHED".format(pid))
-                        interface.close()
-                        del procs[pid]
-                        break
+                if timestep.done or timestep.truncated:
+                    if self._training_reward is None:
+                        self._training_reward = timestep.episodic_reward
+                    else:
+                        self._training_reward = self._training_reward_ema * self._training_reward + \
+                                                (1 - self._training_reward_ema) * timestep.episodic_reward
 
-                    if data is not None:
-                        complete_timesteps, obs = data
-                        for complete_timestep in complete_timesteps:
-                            if complete_timestep.done or complete_timestep.truncated:
-                                if self._training_reward is None:
-                                    self._training_reward = complete_timestep.episodic_reward
-                                else:
-                                    self._training_reward = self._training_reward_ema * self._training_reward + \
-                                                            (1 - self._training_reward_ema) * complete_timestep.episodic_reward
+                if exp_buffer is not None:
+                    exp_buffer.extend(timestep)
 
-                            # t1 = time.perf_counter()
-                            if n_collected >= n_timesteps:
-                                overflow.append(complete_timestep)
-                            else:
-                                n_collected += 1
-                                if exp_buffer is not None:
-                                    exp_buffer.extend(complete_timestep)
-                            # self.loggable_timers["Buffer Extend Time"].append(time.perf_counter() - t1)
+                action_pids.append(pid)
+                self._obs_tensor[buffer_idx].copy_(obs, non_blocking=True)
+                buffer_idx += 1
 
-                        pid_index_buffer = []
-                        pids.append(pid)
-                        for i in range(obs.shape[0]):
-                            obs_tensor[idx].copy_(obs[i], non_blocking=True)
-                            idx += 1
-                            pid_index_buffer.append(pid)
+                if buffer_idx >= self._inference_buffer_size:
+                    actions = agent.forward(self._obs_tensor).cpu().numpy()
 
-                            if idx >= self._inference_buffer_size:
-                                # state_recv_time = time.perf_counter() - state_recv_timer
-                                # action_send_timer = time.perf_counter()
+                    for j in range(len(action_pids)):
+                        pid = action_pids[j]
+                        if self._running_processes[pid].send_action(
+                                actions[j]) == EnvProcessMemoryInterface.PROC_CRASHED_FLAG:
+                            print("PROC {} CRASHED".format(pid))
+                            self._running_processes[pid].close()
+                            del self._running_processes[pid]
 
-                                actions = agent.forward(obs_tensor).cpu().numpy()
-                                action_tensor_index = 0
-                                for j in range(len(pids)):
-                                    proc = procs[pids[j]]
-                                    action = actions[action_tensor_index:action_tensor_index + proc.current_n_agents]
-                                    action_tensor_index += proc.current_n_agents
+                    buffer_idx = 0
+                    action_pids = []
 
-                                    if proc.send_action(action) == EnvProcessMemoryInterface.PROC_CRASHED_FLAG:
+                n_collected += 1
+                if n_collected >= n_timesteps:
+                    break
 
-                                        print("PROC {} CRASHED".format(pids[j]))
-                                        procs[pids[j]].close()
-                                        del procs[pids[j]]
-
-                                        import sys
-                                        sys.exit(-1)
-
-                                idx = 0
-                                pids = []
-
-                        # action_send_time = time.perf_counter() - action_send_timer
-                        # self.loggable_timers["State Recv Time"].append(state_recv_time)
-                        # state_recv_timer = time.perf_counter()
-                        # self.loggable_timers["Action Send Time"].append(action_send_time)
-
-        self._waiting_pids = pids
-        self._current_idx = idx
+        self._waiting_observations = waiting_observations
+        self._waiting_timesteps = waiting_timesteps
+        self._waiting_pids = waiting_pids
+        self._action_pids = action_pids
+        self._buffer_idx = buffer_idx
 
         return n_collected
 
@@ -257,15 +241,15 @@ def test():
     import os
     from prism.config import LUNAR_LANDER_CFG
     os.environ["OPENBLAS_NUM_THREADS"] = "1"
-    collector = MultiprocessExperienceCollector(num_procs=12,
-                                                num_floats_per_process=100_000,
-                                                inference_buffer_size=6,
-                                                obs_stack_size=4,
-                                                device="cpu",
-                                                config=LUNAR_LANDER_CFG)
+    collector = ExperienceCollector(num_procs=12,
+                                    num_floats_per_process=100_000,
+                                    inference_buffer_size=6,
+                                    obs_stack_size=4,
+                                    device="cpu",
+                                    config=LUNAR_LANDER_CFG)
     try:
         print("Retrieving env info...")
-        obs_shape, n_acts = collector.get_env_info()
+        obs_shape, n_acts, n_agents = collector.get_env_info()
 
         print("Creating fake agent...")
         agent = RandomAgent(n_acts)
@@ -316,7 +300,7 @@ def test_interaction():
 
     exp_buffer = exp_buffer_factory.build_exp_buffer(config)
     inference_buffer_size = 4  # config.num_processes  # int(round(config.num_processes * 0.9))
-    collector = MultiprocessExperienceCollector(
+    collector = ExperienceCollector(
         num_procs=config.num_processes,
         num_floats_per_process=config.shared_memory_num_floats_per_process,
         config=config,
