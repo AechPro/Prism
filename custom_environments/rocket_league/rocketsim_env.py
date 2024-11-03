@@ -54,11 +54,11 @@ class RocketSimEnv(object):
         terminal_conditions = [NoTouchTimeoutCondition(timeout_ticks), GoalScoredCondition()]
 
         reward_scale = 0.1
-        touch_scale = 0.05
+        touch_scale = 0.1
         rewards = (
             (EventReward(touch=0.0, goal=1, concede=-1), 50 * reward_scale),
             (TouchBallReward(), 50 * touch_scale * reward_scale),
-            (VelocityPlayerToBallReward(positive_only=True), 2.5 * reward_scale),
+            (VelocityPlayerToBallReward(positive_only=True), 3.5 * reward_scale),
             (FaceBallReward(), 0.25 * reward_scale),
             (InAirReward(), 0.15 * reward_scale),
             (VelocityBallToGoalReward(), 5 * reward_scale)
