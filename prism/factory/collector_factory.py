@@ -1,8 +1,8 @@
 def build_collector(config):
-    from multiprocessing_experience_collection import MultiprocessExperienceCollector, MultiAgentExperienceCollector
+    from multiprocessing_experience_collection import MultiprocessExperienceCollector, ExperienceCollector
 
     inference_buffer_size = int(round(config.num_processes * 0.9))
-    collector = MultiAgentExperienceCollector(
+    collector = ExperienceCollector(
         num_procs=config.num_processes,
         num_floats_per_process=config.shared_memory_num_floats_per_process,
         config=config,

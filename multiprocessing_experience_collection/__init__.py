@@ -1,4 +1,4 @@
 from .shared_memory_interface import SharedMemoryInterface, EnvProcessMemoryInterface
 from .collector_process_interface import CollectorProcessInterface
 from .experience_collector import MultiprocessExperienceCollector
-from .multi_agent_experience_collector import MultiAgentExperienceCollector
+from .experience_collector import ExperienceCollector
