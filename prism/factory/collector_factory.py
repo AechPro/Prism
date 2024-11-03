@@ -1,5 +1,5 @@
 def build_collector(config):
-    from multiprocessing_experience_collection import MultiprocessExperienceCollector, ExperienceCollector
+    from multiprocessing_experience_collection import ExperienceCollector
 
     inference_buffer_size = int(round(config.num_processes * 0.9))
     collector = ExperienceCollector(
