@@ -91,10 +91,24 @@ def run_experiments():
     runner.run_experiments()
 
 
+def run_evaluator():
+    from prism.evals import CheckpointAgentEvaluator
+    from prism.config import MINATAR_CONFIG, SIMPLE_TRAP_CONFIG, DEFAULT_CONFIG, ROCKET_LEAGUE_CONFIG
+
+    cfg = ROCKET_LEAGUE_CONFIG
+    cfg.render = True
+    cfg.device = "cpu"
+    checkpoint_dir = "data/checkpoints/{}".format(cfg.env_name)
+
+    evaluator = CheckpointAgentEvaluator(config=cfg, checkpoint_dir=checkpoint_dir)
+    evaluator.run_evals()
+
+
 def main():
     import os
     os.environ["OPENBLAS_NUM_THREADS"] = "1"
-    run_learner()
+    run_evaluator()
+    # run_learner()
     # run_experiments()
     # eval_ablation_experiment()
 

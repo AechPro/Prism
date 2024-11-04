@@ -15,7 +15,6 @@ class CheckpointAgentEvaluator(object):
         self._init(config)
 
     def _init(self, config):
-
         from prism.factory import agent_factory, env_factory
 
         env = env_factory.build_environment(config)
@@ -24,6 +23,7 @@ class CheckpointAgentEvaluator(object):
         self.agent = agent_factory.build_agent(config=config,
                                                obs_shape=obs_shape,
                                                n_actions=n_actions)
+
         self.evaluator = SyncAgentEvaluator(self.agent, env, 0,
                                             config.evaluation_timestep_horizon,
                                             config.frame_stack_size,
@@ -78,19 +78,3 @@ class CheckpointAgentEvaluator(object):
         if added_any:
             self.unprocessed_checkpoints.sort(key=lambda x: int(x.split("_")[-1]), reverse=True)
 
-
-def test():
-    from prism.config import MINATAR_CONFIG, SIMPLE_TRAP_CONFIG, DEFAULT_CONFIG
-    # cfg = DEFAULT_CONFIG
-    cfg = MINATAR_CONFIG
-    # cfg = SIMPLE_TRAP_CONFIG
-    cfg.render = False
-    cfg.device = "cpu"
-    checkpoint_dir = "../../data/checkpoints/{}".format(cfg.env_name)
-
-    evaluator = CheckpointAgentEvaluator(config=cfg, checkpoint_dir=checkpoint_dir)
-    evaluator.run_evals()
-
-
-if __name__ == "__main__":
-    test()

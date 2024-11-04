@@ -40,12 +40,12 @@ class SyncAgentEvaluator(object):
 
         # Collect at least one episode.
         while collected_ts < n_ts or len(ep_rews) == 0:
-            action = agent.forward(obs_stacker.obs_stack.view(1, *obs_stacker.obs_stack.shape))
-            obs, rew, done, trunc, info = env.step(action.item())
+            action = agent.forward(obs_stacker.obs_stack)
+            obs, rew, done, trunc, info = env.step(action)
             obs = torch.as_tensor(obs, dtype=torch.float32, device=device)
             obs_stacker.stack(obs)
 
-            current_ep_rew += rew
+            current_ep_rew += rew[0]
             if done or trunc:
                 ep_rews.append(current_ep_rew)
                 if verbose:
