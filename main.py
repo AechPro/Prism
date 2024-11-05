@@ -33,11 +33,6 @@ def eval_ablation_experiment():
                     cfg_path = os.path.join(wandb_folder_path, wandb_run_folder, "files", "config.yaml")
                     with (open(cfg_path) as f):
                         run_config = yaml.safe_load(f)
-                        # if "oxv4r5ca" in wandb_run_folder:
-                        #     print(run_config)
-                        #     print(run_config["wandb_project_name"]["value"], project_name)
-                        #     print(run_config["wandb_group_name"]["value"], ablation_name)
-                        #     print(run_config["wandb_run_name"]["value"], seed_name)
                         if "wandb_project_name" not in run_config.keys():
                             continue
 

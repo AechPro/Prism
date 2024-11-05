@@ -79,15 +79,6 @@ class QEnsemble(nn.Module):
             ratio = l2_set / (mean_l2 + 1e-12)
             theil_index = (ratio * torch.log(ratio)).mean()
 
-            # l2_set = []
-            # for i in range(self.n_heads):
-            #     l2_set.append(nn.utils.parameters_to_vector(self.q_heads[i].parameters()).norm())
-            # l2_set = torch.stack(l2_set)
-            # mean_l2 = torch.mean(l2_set)
-            #
-            # ratio = l2_set / mean_l2
-            # theil_index = (ratio * torch.log(ratio)).mean()
-
         else:
             theil_index = 0
 
