@@ -9,7 +9,7 @@ class QEnsemble(nn.Module):
                  n_model_layers=0, model_layer_size=0, model_activation=nn.ReLU,
                  q_loss_function=None, ensemble_variation_coef=0,
                  squish_function=None, unsquish_function=None,
-                 use_double_q_learning=True,
+                 use_double_q_learning=True, q_loss_weight=1,
                  device="cpu"):
 
         super().__init__()
@@ -21,6 +21,7 @@ class QEnsemble(nn.Module):
         self.ensemble_variation_coef = ensemble_variation_coef
         self.theil = 0
         self.n_heads = n_heads
+        self.q_loss_weight = q_loss_weight
 
         if n_model_layers > 0:
             self.q_heads = nn.ModuleList([
@@ -78,15 +79,6 @@ class QEnsemble(nn.Module):
             ratio = l2_set / (mean_l2 + 1e-12)
             theil_index = (ratio * torch.log(ratio)).mean()
 
-            # l2_set = []
-            # for i in range(self.n_heads):
-            #     l2_set.append(nn.utils.parameters_to_vector(self.q_heads[i].parameters()).norm())
-            # l2_set = torch.stack(l2_set)
-            # mean_l2 = torch.mean(l2_set)
-            #
-            # ratio = l2_set / mean_l2
-            # theil_index = (ratio * torch.log(ratio)).mean()
-
         else:
             theil_index = 0
 
@@ -95,7 +87,7 @@ class QEnsemble(nn.Module):
         self.theil = theil_index
         loss = q_loss - theil_index * self.ensemble_variation_coef
 
-        return loss
+        return loss * self.q_loss_weight
 
     def log(self, logger):
         if isinstance(self.theil, torch.Tensor):

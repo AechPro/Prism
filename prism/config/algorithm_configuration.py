@@ -14,14 +14,15 @@ class Config(object):
     timesteps_per_report: int
     episode_timestep_limit: int
 
+    distributional_loss_weight: float
+    q_loss_weight: float
     batch_size: int
     gamma: float
+    learning_rate: float
+    max_grad_norm: float
 
     reward_clipping_type: str
     loss_squish_fn_id: str
-
-    learning_rate: float
-    max_grad_norm: float
 
     use_adam: bool
     adam_beta1: float

@@ -33,11 +33,6 @@ def eval_ablation_experiment():
                     cfg_path = os.path.join(wandb_folder_path, wandb_run_folder, "files", "config.yaml")
                     with (open(cfg_path) as f):
                         run_config = yaml.safe_load(f)
-                        # if "oxv4r5ca" in wandb_run_folder:
-                        #     print(run_config)
-                        #     print(run_config["wandb_project_name"]["value"], project_name)
-                        #     print(run_config["wandb_group_name"]["value"], ablation_name)
-                        #     print(run_config["wandb_run_name"]["value"], seed_name)
                         if "wandb_project_name" not in run_config.keys():
                             continue
 
@@ -91,9 +86,23 @@ def run_experiments():
     runner.run_experiments()
 
 
+def run_evaluator():
+    from prism.evals import CheckpointAgentEvaluator
+    from prism.config import MINATAR_CONFIG, SIMPLE_TRAP_CONFIG, DEFAULT_CONFIG, ROCKET_LEAGUE_CONFIG
+
+    cfg = ROCKET_LEAGUE_CONFIG
+    cfg.render = True
+    cfg.device = "cpu"
+    checkpoint_dir = "data/checkpoints/{}".format(cfg.env_name)
+
+    evaluator = CheckpointAgentEvaluator(config=cfg, checkpoint_dir=checkpoint_dir)
+    evaluator.run_evals()
+
+
 def main():
     import os
     os.environ["OPENBLAS_NUM_THREADS"] = "1"
+    # run_evaluator()
     run_learner()
     # run_experiments()
     # eval_ablation_experiment()

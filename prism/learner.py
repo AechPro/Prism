@@ -67,10 +67,6 @@ class Learner(object):
         self.logger.set_holdout_data(self.experience_buffer.sample().clone())
         self.checkpointer.checkpoint(self.cumulative_timesteps)
 
-        # from cProfile import Profile
-        # profile = Profile()
-        # profile.enable()
-
         while self.cumulative_timesteps < self.timestep_limit:
             loop_start = time.perf_counter()
 
@@ -121,9 +117,6 @@ class Learner(object):
             self.checkpointer.checkpoint(self.cumulative_timesteps)
             if self.timesteps_since_report >= self.timesteps_per_report:
                 self.report()
-                # profile.disable()
-                # profile.dump_stats("profile.prof")
-                # profile.enable()
 
             self.loggables["Iteration Time"].append(time.perf_counter() - loop_start)
 

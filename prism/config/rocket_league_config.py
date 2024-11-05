@@ -13,6 +13,8 @@ ROCKET_LEAGUE_CONFIG.timesteps_between_evaluations = 1_000_000
 ROCKET_LEAGUE_CONFIG.timesteps_per_iteration = 32
 ROCKET_LEAGUE_CONFIG.batch_size = 32
 ROCKET_LEAGUE_CONFIG.gamma = 0.995
+ROCKET_LEAGUE_CONFIG.distributional_loss_weight = 1
+ROCKET_LEAGUE_CONFIG.q_loss_weight = 10
 
 ROCKET_LEAGUE_CONFIG.frame_stack_size = 1
 ROCKET_LEAGUE_CONFIG.timestep_limit = 500_000_000_000

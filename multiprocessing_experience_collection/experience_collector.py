@@ -38,10 +38,6 @@ class ExperienceCollector(object):
         self._waiting_pids = []
         self._action_pids = []
         self._buffer_idx = 0
-
-        # self.loggable_timers = {}
-        # self.reset_loggable_timers()
-
         self._init_processes(num_procs, num_floats_per_process, config, obs_stack_size)
 
     def get_env_info(self):
@@ -121,8 +117,7 @@ class ExperienceCollector(object):
                         self._training_reward = self._training_reward_ema * self._training_reward + \
                                                 (1 - self._training_reward_ema) * timestep.episodic_reward
 
-                if exp_buffer is not None:
-                    exp_buffer.extend(timestep)
+                exp_buffer.extend(timestep)
 
                 action_pids.append(pid)
                 self._obs_tensor[buffer_idx].copy_(obs, non_blocking=True)
@@ -159,25 +154,9 @@ class ExperienceCollector(object):
             interface.close()
 
     def log(self, logger):
-        # for key, value in self.loggable_timers.items():
-        #     logger.log_data(data=np.mean(value), group_name="Report/Metrics", var_name=key)
-        # self.reset_loggable_timers()
-
-        # for pid, interface in self._running_processes.items():
-        #     for key, value in interface.loggable_timers.items():
-        #         logger.log_data(data=np.mean(value), group_name="Report/Metrics".format(pid), var_name="Proc{} {}".format(pid, key))
-        #     interface.reset_loggable_timers()
-
         logger.log_data(data=self._training_reward,
                         group_name="Report/Rewards",
                         var_name="Training Reward")
-
-    # def reset_loggable_timers(self):
-    #     self.loggable_timers.clear()
-    #     self.loggable_timers["State Recv Time"] = []
-    #     self.loggable_timers["Action Send Time"] = []
-    #     self.loggable_timers["Buffer Extend Time"] = []
-    #     self.loggable_timers["Receive Env Step Time"] = []
 
     def _init_torch_imports(self):
         # We need to do this to avoid importing torch before the processes start.
@@ -216,113 +195,3 @@ class ExperienceCollector(object):
                                                                     obs_stack_size)
 
             self._running_processes[pid] = collector_process_interface
-
-
-def create_test_env():
-    from gymnasium.wrappers.atari_preprocessing import AtariPreprocessing
-    import gymnasium
-    gym_env = gymnasium.make("ALE/Boxing-v5",
-                             max_episode_steps=108_000,
-                             repeat_action_probability=0,
-                             frameskip=1)
-
-    gym_env = AtariPreprocessing(gym_env, noop_max=30,
-                                 terminal_on_life_loss=True,
-                                 frame_skip=4,
-                                 grayscale_obs=True,
-                                 scale_obs=True)
-    return gym_env
-
-    # import gymnasium
-    # return gymnasium.make("LunarLander-v2")
-
-
-def test():
-    import os
-    from prism.config import LUNAR_LANDER_CFG
-    os.environ["OPENBLAS_NUM_THREADS"] = "1"
-    collector = ExperienceCollector(num_procs=12,
-                                    num_floats_per_process=100_000,
-                                    inference_buffer_size=6,
-                                    obs_stack_size=4,
-                                    device="cpu",
-                                    config=LUNAR_LANDER_CFG)
-    try:
-        print("Retrieving env info...")
-        obs_shape, n_acts, n_agents = collector.get_env_info()
-
-        print("Creating fake agent...")
-        agent = RandomAgent(n_acts)
-
-        print("Waiting for all envs to send reset states...")
-        collector.signal_processes_start_collecting(agent)
-
-        print("Beginning collection....")
-        n_ts = 10_000
-        sps_measurements = []
-        for i in range(100):
-            t1 = time.perf_counter()
-            collector.collect_timesteps(n_ts, agent)
-            collection_time = time.perf_counter() - t1
-            sps = n_ts / collection_time
-            sps_measurements.append(sps)
-            print("Collected {} timesteps in {} seconds | {} | {}".format(n_ts, collection_time, sps,
-                                                                          np.mean(sps_measurements)))
-            time.sleep(1)
-
-        print("Done collecting!")
-        # for ts in timesteps:
-        #     print(ts)
-
-    finally:
-        collector.close()
-
-
-def test_interaction():
-    import torch
-
-    class TestAgent(object):
-        def __init__(self):
-            self.step = 0
-
-        def forward(self, obs):
-            self.step += 1
-            return torch.as_tensor([obs[0][0].item() for i in range(len(obs))], dtype=torch.long)
-
-        def __call__(self, *args, **kwargs):
-            return self.forward(*args, **kwargs)
-
-    from prism.factory import exp_buffer_factory
-    from prism.config import LUNAR_LANDER_CFG
-    config = LUNAR_LANDER_CFG
-    config.env_name = "debug"
-    config.num_processes = 4
-
-    exp_buffer = exp_buffer_factory.build_exp_buffer(config)
-    inference_buffer_size = 4  # config.num_processes  # int(round(config.num_processes * 0.9))
-    collector = ExperienceCollector(
-        num_procs=config.num_processes,
-        num_floats_per_process=config.shared_memory_num_floats_per_process,
-        config=config,
-        inference_buffer_size=inference_buffer_size,
-        obs_stack_size=config.frame_stack_size,
-        device=config.device,
-        training_reward_ema=config.training_reward_ema
-    )
-
-    agent = TestAgent()
-    collector.signal_processes_start_collecting(agent)
-
-    time.sleep(1)
-    for i in range(100):
-        ts = collector.collect_timesteps(1, agent, exp_buffer)
-    timesteps = exp_buffer.buffer._storage._storage
-    for ts in timesteps:
-        assert ts[0].obs[0].item() == ts[0].action, "OBS-ACTION MISMATCH".format(ts[0].obs[0].item(), ts[0].action)
-        assert ts[0].reward == ts[0].action + 1, "REWARD-ACTION MISMATCH".format(ts[0].reward, ts[0].action)
-        print(ts[0])
-    collector.close()
-
-
-if __name__ == "__main__":
-    test_interaction()
