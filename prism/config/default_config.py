@@ -12,14 +12,18 @@ DEFAULT_CONFIG = Config(
     timesteps_per_report=100_000,
     episode_timestep_limit=108_000,
 
+    distributional_loss_weight=1,
+    q_loss_weight=1,
     batch_size=32,
     gamma=0.99,
+    learning_rate=6.25e-5,
+    max_grad_norm=10.0,
 
     loss_squish_fn_id="none",
     reward_clipping_type="dopamine_clip",
 
-    learning_rate=6.25e-5,
-    max_grad_norm=10.0,
+
+
     use_adam=True,
     adam_beta1=0.9,
     adam_beta2=0.999,

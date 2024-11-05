@@ -8,8 +8,8 @@ class IQNModel(nn.Module):
                  n_model_layers=0, model_layer_size=0, model_activation=nn.ReLU,
                  squish_function=None, unsquish_function=None, huber_k=1.0,
                  n_current_quantile_samples=8, n_next_quantile_samples=8,
-                 n_quantile_samples_per_action=200, use_double_q_learning=True,
-                 propagate_grad=True, risk_policy=None, device="cpu"):
+                 n_quantile_samples_per_action=200, distributional_loss_weight=1,
+                 use_double_q_learning=True, propagate_grad=True, risk_policy=None, device="cpu"):
 
         super().__init__()
         self.device = device
@@ -22,6 +22,7 @@ class IQNModel(nn.Module):
         self.unsquish_function = unsquish_function
         self.huber_k = huber_k
         self.use_double_q_learning = use_double_q_learning
+        self.distributional_loss_weight = distributional_loss_weight
 
         self.cos_basis_range = torch.arange(1, n_basis_elements + 1, device=device).unsqueeze(0) * np.pi
         self.risk_policy = risk_policy
@@ -141,7 +142,7 @@ class IQNModel(nn.Module):
 
         quantile_loss = quantile_huber_loss.sum(dim=(1, 2)).mean()
 
-        return quantile_loss
+        return quantile_loss * self.distributional_loss_weight
 
     def log(self, logger):
         pass

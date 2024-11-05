@@ -3,7 +3,6 @@ import torch
 from prism.config import Config
 from prism.agents.models import IQNModel, FFNNModel, QEnsemble, CompositeModel, NatureAtariCnn, MinAtarModel
 from prism.agents import squish_functions
-from prism.util import Logger
 import torch.nn as nn
 import numpy as np
 
@@ -98,6 +97,7 @@ def create_model(env_state_shape, env_n_actions, config: Config):
                              squish_function=squish_function,
                              unsquish_function=unsquish_function,
                              huber_k=config.iqn_huber_loss_kappa,
+                             distributional_loss_weight=config.distributional_loss_weight,
 
                              n_current_quantile_samples=config.iqn_n_current_state_quantile_samples,
                              n_next_quantile_samples=config.iqn_n_next_state_quantile_samples,
@@ -120,6 +120,7 @@ def create_model(env_state_shape, env_n_actions, config: Config):
                             unsquish_function=unsquish_function,
                             use_double_q_learning=config.use_double_q_learning,
                             q_loss_function=q_loss_function,
+                            q_loss_weight=config.q_loss_weight,
                             ensemble_variation_coef=config.ids_ensemble_variation_coef,
                             device=config.device)
     elif config.use_dqn:
@@ -134,6 +135,7 @@ def create_model(env_state_shape, env_n_actions, config: Config):
                             unsquish_function=unsquish_function,
                             use_double_q_learning=config.use_double_q_learning,
                             q_loss_function=q_loss_function,
+                            q_loss_weight=config.q_loss_weight,
                             ensemble_variation_coef=0,
                             device=config.device)
 

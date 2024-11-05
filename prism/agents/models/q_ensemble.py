@@ -9,7 +9,7 @@ class QEnsemble(nn.Module):
                  n_model_layers=0, model_layer_size=0, model_activation=nn.ReLU,
                  q_loss_function=None, ensemble_variation_coef=0,
                  squish_function=None, unsquish_function=None,
-                 use_double_q_learning=True,
+                 use_double_q_learning=True, q_loss_weight=1,
                  device="cpu"):
 
         super().__init__()
@@ -21,6 +21,7 @@ class QEnsemble(nn.Module):
         self.ensemble_variation_coef = ensemble_variation_coef
         self.theil = 0
         self.n_heads = n_heads
+        self.q_loss_weight = q_loss_weight
 
         if n_model_layers > 0:
             self.q_heads = nn.ModuleList([
@@ -95,7 +96,7 @@ class QEnsemble(nn.Module):
         self.theil = theil_index
         loss = q_loss - theil_index * self.ensemble_variation_coef
 
-        return loss
+        return loss * self.q_loss_weight
 
     def log(self, logger):
         if isinstance(self.theil, torch.Tensor):

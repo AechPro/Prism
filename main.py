@@ -107,8 +107,8 @@ def run_evaluator():
 def main():
     import os
     os.environ["OPENBLAS_NUM_THREADS"] = "1"
-    run_evaluator()
-    # run_learner()
+    # run_evaluator()
+    run_learner()
     # run_experiments()
     # eval_ablation_experiment()
 
