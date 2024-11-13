@@ -217,7 +217,7 @@ class Agent(object):
                             group_name="Report/Losses", var_name="Distribution Loss")
 
         if self._static_q_loss is not None:
-            logger.log_data(data=self._static_q_loss.detach().detach().mean().item(),
+            logger.log_data(data=self._static_q_loss.detach().mean().item(),
                             group_name="Report/Losses", var_name="Q Loss")
 
         if logger.holdout_data is not None:

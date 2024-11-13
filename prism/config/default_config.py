@@ -22,8 +22,6 @@ DEFAULT_CONFIG = Config(
     loss_squish_fn_id="none",
     reward_clipping_type="dopamine_clip",
 
-
-
     use_adam=True,
     adam_beta1=0.9,
     adam_beta2=0.999,
@@ -64,7 +62,7 @@ DEFAULT_CONFIG = Config(
     experience_replay_capacity=1_000_000,
     num_initial_random_timesteps=20_000,  # 80K *FRAMES*
 
-    use_per=True,
+    use_per=False,
     per_alpha=0.5,
     per_beta_start=0.5,
     per_beta_end=0.5,
