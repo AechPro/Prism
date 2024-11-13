@@ -10,8 +10,8 @@ ROCKET_LEAGUE_CONFIG.num_initial_random_timesteps = 32_000
 ROCKET_LEAGUE_CONFIG.evaluation_timestep_horizon = 100_000
 ROCKET_LEAGUE_CONFIG.timesteps_per_report = 100_000
 ROCKET_LEAGUE_CONFIG.timesteps_between_evaluations = 1_000_000
-ROCKET_LEAGUE_CONFIG.timesteps_per_iteration = 4
-ROCKET_LEAGUE_CONFIG.batch_size = 32
+ROCKET_LEAGUE_CONFIG.timesteps_per_iteration = 100
+ROCKET_LEAGUE_CONFIG.batch_size = 64
 ROCKET_LEAGUE_CONFIG.gamma = 0.995
 
 ROCKET_LEAGUE_CONFIG.distributional_loss_weight = 1
@@ -27,9 +27,10 @@ ROCKET_LEAGUE_CONFIG.embedding_model_layer_sizes = 1024
 ROCKET_LEAGUE_CONFIG.embedding_model_final_dim = 1024
 ROCKET_LEAGUE_CONFIG.embedding_model_act_fn_id = "relu"
 
+ROCKET_LEAGUE_CONFIG.use_per = False
 ROCKET_LEAGUE_CONFIG.use_adam = True
 ROCKET_LEAGUE_CONFIG.q_loss_fn = "mse"
-ROCKET_LEAGUE_CONFIG.learning_rate = 3e-4
+ROCKET_LEAGUE_CONFIG.learning_rate = 1e-5
 
 ROCKET_LEAGUE_CONFIG.n_step_returns_length = 3
 
@@ -58,6 +59,6 @@ ROCKET_LEAGUE_CONFIG.use_cuda_graph = True
 ROCKET_LEAGUE_CONFIG.use_layer_norm = True
 ROCKET_LEAGUE_CONFIG.num_processes = 16
 
-ROCKET_LEAGUE_CONFIG.wandb_run_name = "debug"
+ROCKET_LEAGUE_CONFIG.wandb_run_name = "rhobot"
 ROCKET_LEAGUE_CONFIG.wandb_project_name = "prism"
 ROCKET_LEAGUE_CONFIG.wandb_group_name = "rocket_league"

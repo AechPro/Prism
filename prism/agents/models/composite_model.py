@@ -44,7 +44,7 @@ class CompositeModel(nn.Module):
         if self._static_return_distribution_estimate is not None:
             distribution_output = self._static_return_distribution_estimate.clone()
         if self._static_q_outputs is not None:
-            q_output = [arg.clone() for arg in self._static_q_outputs]
+            q_output = self._static_q_outputs.clone()
 
         return q_output, distribution_output
 
@@ -87,8 +87,7 @@ class CompositeModel(nn.Module):
         with torch.cuda.graph(self._forward_cuda_graph):
             q_output, return_distribution_estimate = self._forward_without_cuda_graph(self._static_input, for_action=True)
             if q_output is not None:
-                for arg in q_output:
-                    self._static_q_outputs.append(arg)
+                self._static_q_outputs = q_output
             if return_distribution_estimate is not None:
                 self._static_return_distribution_estimate = return_distribution_estimate
 

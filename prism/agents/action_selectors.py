@@ -33,7 +33,7 @@ class EGreedyActionSelector(ActionSelector):
         self.rng = np.random.RandomState(seed)
 
     def generate_action_probs(self, action_value_distribution, q_estimates):
-        n_timesteps, n_actions = q_estimates[0].shape
+        n_timesteps, n_actions, n_estimators = q_estimates.shape
         if self.rng.uniform(0, 1) < self.epsilon.update(n_timesteps):
             action = self.rng.randint(n_actions, size=(n_timesteps,))
             action = torch.as_tensor(action, dtype=torch.long)
@@ -69,19 +69,11 @@ class EGreedyActionSelector(ActionSelector):
 
 class GreedyActionSelector(ActionSelector):
     def generate_action_probs(self, action_value_distribution, q_estimates):
-        mean = 0
-        for q_estimate in q_estimates:
-            mean += q_estimate
-        mean /= len(q_estimates)
+        mean = q_estimates.mean(dim=-1)
         action = torch.argmax(mean, dim=-1)
 
         action_probs = torch.nn.functional.one_hot(action, mean.shape[-1])
         return action_probs
-
-        # if onehot_actions:
-        #     action = torch.nn.functional.one_hot(action, mean.shape[-1])
-        #
-        # return action.long()
 
     def select_action(self, action_probs):
         return torch.argmax(action_probs, dim=-1).long().view(-1)
@@ -97,19 +89,12 @@ class MinRegretActionSelector(ActionSelector):
         self.unsquish_function = unsquish_function
 
     def generate_action_probs(self, action_value_distribution, q_estimates):
-        q_shape = q_estimates[0].shape
-        unsquish = self.unsquish_function
-        mean = 0
-        for i in range(len(q_estimates)):
-            if unsquish is not None:
-                q_estimates[i] = unsquish(q_estimates[i])
-            mean += q_estimates[i]
-        mean /= len(q_estimates)
+        q_shape = q_estimates.shape[:2]
+        if self.unsquish_function is not None:
+            q_estimates = self.unsquish_function(q_estimates)
 
-        variance = 0
-        for q_estimate in q_estimates:
-            variance += (q_estimate - mean).square()
-        variance /= len(q_estimates)
+        mean = q_estimates.mean(dim=-1)
+        variance = q_estimates.std(dim=-1)
 
         std = torch.sqrt(variance)
 
@@ -138,23 +123,14 @@ class IDSActionSelector(ActionSelector):
         self.unsquish_function = unsquish_function
 
     def generate_action_probs(self, action_value_distribution, q_estimates, for_log=False):
-        q_shape = q_estimates[0].shape
+        q_shape = q_estimates.shape[:2]
 
-        unsquish = self.unsquish_function
-        if unsquish is not None:
-            action_value_distribution = unsquish(action_value_distribution)
+        if self.unsquish_function is not None:
+            action_value_distribution = self.unsquish_function(action_value_distribution)
+            q_estimates = self.unsquish_function(q_estimates)
 
-        mean = 0
-        for i in range(len(q_estimates)):
-            if unsquish is not None:
-                q_estimates[i] = unsquish(q_estimates[i])
-            mean += q_estimates[i]
-        mean /= len(q_estimates)
-
-        variance = 0
-        for q_estimate in q_estimates:
-            variance += (q_estimate - mean).square()
-        variance /= len(q_estimates)
+        mean = q_estimates.mean(dim=-1)
+        variance = q_estimates.std(dim=-1)
 
         std = torch.sqrt(variance)
 
