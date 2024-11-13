@@ -66,10 +66,11 @@ def run_learner():
                               MINATAR_CONFIG,
                               SIMPLE_TRAP_CONFIG,
                               REVISITING_RAINBOW_MINATAR_CONFIG,
-                              ROCKET_LEAGUE_CONFIG)
+                              ROCKET_LEAGUE_CONFIG,
+                              SHAPES_ENV_CONFIG)
     from prism import Learner
 
-    config = ROCKET_LEAGUE_CONFIG
+    config = SHAPES_ENV_CONFIG
     config.log_to_wandb = True
 
     learner = Learner()
