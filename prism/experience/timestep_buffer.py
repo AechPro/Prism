@@ -29,15 +29,11 @@ class TimestepBuffer(object):
         self._cpu_gamma_buffer = None
         self._cpu_action_buffer = None
 
-        # import cProfile
-        # self.profile = cProfile.Profile()
-
     def extend(self, timestep: Timestep):
         return self.buffer.extend([timestep])
 
     @torch.no_grad()
     def sample(self, batch_size=None, return_info=False):
-        # self.profile.enable()
         data = self.buffer.sample(batch_size=batch_size, return_info=return_info)
         if return_info:
             timesteps, info = data
@@ -48,9 +44,6 @@ class TimestepBuffer(object):
             batch_size = self.buffer._batch_size
 
         td_batch = self._timesteps_to_batch(timesteps, batch_size)
-
-        # self.profile.disable()
-        # self.profile.dump_stats("data/exp_buffer_sampling_time.prof")
 
         if return_info:
             return td_batch, info
@@ -184,7 +177,6 @@ class TimestepBuffer(object):
         # print(f"misc copy time: {misc_copy_time:f}")
         # print(f"loop time: {time.perf_counter()-loop_start:f}")
         if self._cpu_obs_buffer is not None:
-            # t1 = time.perf_counter()
             self._obs.copy_(self._cpu_obs_buffer, non_blocking=True)
             self._next_obs.copy_(self._cpu_next_obs_buffer, non_blocking=True)
             self._reward.copy_(self._cpu_reward_buffer, non_blocking=True)
@@ -276,30 +268,25 @@ class TimestepBuffer(object):
                 next_ts = timestep.next()
 
                 if next_ts is not None:
-
                     # If this is a partial timestep we must artificially truncate the trajectory this timestep resides
                     # in because when the buffer is loaded we can't recover the state of the data collectors.
                     if next_ts.action is None or next_ts.reward is None:
-                        serialized_truncated_obs = next_ts.obs.flatten().tolist()
-                        serialized_truncated_obs_shape = list(next_ts.obs.shape)
+                        # Mark the next timestep as truncated.
+                        next_ts.id = artificial_truncated_id
 
-                        # Truncated flag.
-                        serialized[6] = True
+                        # Remove the weakref.
+                        timestep.next = next_ts
 
-                        # Next timestep ID.
-                        serialized[-1] = artificial_truncated_id
+                        # Tell the current timestep it is connected to a truncated link.
+                        timestep.truncated = True
 
-                        # Insert the truncated observation.
-                        serialized = (serialized[:3] +
-                                      [artificial_truncated_id, serialized_truncated_obs, serialized_truncated_obs_shape] +
-                                      serialized[4:])
+                        # Re-serialize the timestep so the truncated observation is carried over.
+                        serialized = timestep.serialize()
 
+                        # Decrement the artificial truncated id.
                         artificial_truncated_id -= 1
 
-            timesteps.append(serialized)
-            # print()
-            # print(timestep)
-            # print(timesteps[-1])
+            timesteps += serialized
 
         with open(os.path.join(buffer_path, "timesteps.pkl"), 'wb') as f:
             pickle.dump(timesteps, f)
@@ -321,89 +308,189 @@ class TimestepBuffer(object):
         import weakref
 
         timestep_id_map = {}
-        required_timestep_links = []
         storage = self.buffer._storage
 
-        for serialized_timestep in serialized_timesteps:
-            idx = 0
-            timestep = Timestep(serialized_timestep[idx])
+        idx = 0
+        while idx < len(serialized_timesteps):
+            timestep, links, idx = Timestep.deserialize(serialized_timesteps, idx)
+            timestep_id_map[timestep.id] = (timestep, links)
 
-            idx += 1
-            if serialized_timestep[idx] is not None:
-                timestep.obs = torch.as_tensor(serialized_timestep[idx],
-                                               dtype=torch.float32,
-                                               device="cpu").reshape(serialized_timestep[idx + 1])
-                idx += 2
+        idx = 0
+        for ts_id, data in timestep_id_map.items():
+            timestep, links = data
+            if len(links) == 2:
+                n_step_next_id, prev_id = links
+                next_id = None
             else:
-                idx += 1
+                n_step_next_id, prev_id, next_id = links
 
-            if serialized_timestep[idx] is not None:
-                truncated_id = serialized_timestep[idx]
-                idx += 1
-                truncated_obs = torch.as_tensor(serialized_timestep[idx],
-                                                dtype=torch.float32,
-                                                device="cpu").reshape(serialized_timestep[idx + 1])
-
-                idx += 2
-                truncated_timestep = Timestep(truncated_id)
-                truncated_timestep.truncated_obs = truncated_obs
-                timestep_id_map[truncated_id] = truncated_timestep
-
-            else:
-                idx += 1
-
-            timestep.reward = serialized_timestep[idx]
-            idx += 1
-            timestep.done = serialized_timestep[idx]
-            idx += 1
-            timestep.truncated = serialized_timestep[idx]
-            idx += 1
-
-            if serialized_timestep[idx] is not None:
-                # timestep.action = torch.as_tensor(serialized_timestep[idx],
-                #                                   dtype=torch.long,
-                #                                   device="cpu").reshape(serialized_timestep[idx + 1])
-                # idx += 2
-
-                timestep.action = serialized_timestep[idx]
-                idx += 1
-            else:
-                idx += 1
-
-            timestep.n_step_return = serialized_timestep[idx]
-            idx += 1
-            timestep.n_step_gamma = serialized_timestep[idx]
-            idx += 1
-            timestep.n_step_done = serialized_timestep[idx]
-            idx += 1
-            timestep.needs_n_step = serialized_timestep[idx]
-            idx += 1
-            timestep.episodic_reward = serialized_timestep[idx]
-            idx += 1
-
-            links = (timestep.id, serialized_timestep[idx], serialized_timestep[idx + 1], serialized_timestep[idx + 2])
-
-            timestep_id_map[timestep.id] = timestep
-            required_timestep_links.append(links)
-
-        for i in range(len(required_timestep_links)):
-            ts_id, n_step_next_id, prev_id, next_id = required_timestep_links[i]
-
-            timestep = timestep_id_map[ts_id]
             if prev_id is not None:
-                timestep.prev = weakref.ref(timestep_id_map[prev_id])
+                timestep.prev = weakref.ref(timestep_id_map[prev_id][0])
 
             if n_step_next_id is not None:
-                timestep.n_step_next = weakref.ref(timestep_id_map[n_step_next_id])
+                timestep.n_step_next = weakref.ref(timestep_id_map[n_step_next_id][0])
 
-            if next_id is not None:
-                if timestep.truncated:
-                    truncated_timestep = timestep_id_map[next_id]
-                    timestep.next = truncated_timestep
-                    truncated_timestep.prev = weakref.ref(timestep)
-                else:
-                    timestep.next = weakref.ref(timestep_id_map[next_id])
+            if next_id is not None and not timestep.truncated:
+                timestep.next = weakref.ref(timestep_id_map[next_id][0])
 
-            storage[i] = [timestep]
-
+            storage[idx] = [timestep]
+            idx += 1
         timestep_id_map.clear()
+
+
+def simple_save_load_test():
+    import torch
+    from prism.config import LUNAR_LANDER_CFG
+    from prism.factory import exp_buffer_factory
+    cfg = LUNAR_LANDER_CFG
+
+    def _make_timestep(_ts_id, done, truncated):
+        timestep = Timestep(_ts_id)
+        timestep.obs = torch.ones(1) * _ts_id
+        timestep.action = _ts_id
+        timestep.reward = _ts_id
+        timestep.done = done
+        timestep.truncated = truncated
+        return timestep
+
+    exp_buffer = exp_buffer_factory.build_exp_buffer(cfg)
+    ts_id = 0
+
+    empty_timestep = Timestep(ts_id)
+    ts_id += 1
+
+    populated_timestep = _make_timestep(ts_id, False, False)
+    ts_id += 1
+
+    first_linked_timestep = _make_timestep(ts_id, False, False)
+    ts_id += 1
+
+    second_linked_timestep = _make_timestep(ts_id, True, False)
+    ts_id += 1
+
+    first_linked_timestep.next = weakref.ref(populated_timestep)
+    second_linked_timestep.prev = weakref.ref(first_linked_timestep)
+
+    three_link_start = _make_timestep(ts_id, False, False)
+    ts_id += 1
+    three_link_middle = _make_timestep(ts_id, False, False)
+    ts_id += 1
+    three_link_end = _make_timestep(ts_id, False, True)
+    ts_id += 1
+    three_link_truncated = _make_timestep(ts_id, False, False)
+
+    three_link_start.next = weakref.ref(three_link_middle)
+    three_link_middle.prev = weakref.ref(three_link_start)
+    three_link_middle.next = weakref.ref(three_link_end)
+    three_link_end.prev = weakref.ref(three_link_middle)
+    three_link_end.next = three_link_truncated
+
+    exp_buffer.extend(empty_timestep)
+    exp_buffer.extend(populated_timestep)
+    exp_buffer.extend(first_linked_timestep)
+    exp_buffer.extend(second_linked_timestep)
+    exp_buffer.extend(three_link_start)
+    exp_buffer.extend(three_link_middle)
+    exp_buffer.extend(three_link_end)
+
+    print("BEFORE SAVE")
+    for ts in exp_buffer.buffer._storage:
+        print(ts[0])
+
+    exp_buffer.save("test_buffer")
+
+    print("AFTER SAVE")
+    for ts in exp_buffer.buffer._storage:
+        print(ts[0])
+
+    exp_buffer.empty()
+    del exp_buffer
+
+    exp_buffer = exp_buffer_factory.build_exp_buffer(cfg)
+    exp_buffer.load("test_buffer")
+
+    print("AFTER LOAD")
+    for ts in exp_buffer.buffer._storage:
+        print(ts[0])
+
+
+def complex_save_load_test():
+    from torchrl.data.replay_buffers import ReplayBuffer, PrioritizedReplayBuffer
+    from torchrl.data import ListStorage
+    import torch
+    from prism.experience import Timestep
+    import weakref
+
+    td_buffer = PrioritizedReplayBuffer(storage=ListStorage(max_size=100), collate_fn=lambda x: x, batch_size=5,
+                                        alpha=0.5, beta=0.5)
+    buffer = TimestepBuffer(td_buffer, frame_stack=1, device="cpu", n_step=3, gamma=0.99)
+    t = Timestep(1)
+    t.obs = torch.zeros(3, 4)
+    print("filling buffer")
+    for i in range(1, 27):  # (1, 27)
+        t.reward = i
+        t.done = 20 > i > 0 and i % 5 == 0
+        t.truncated = i >= 10 and i % 12 == 0
+        t.action = torch.ones(1)
+
+        nt = Timestep(i + 1)
+        nt.obs = torch.ones(2, 84//2, 84//2) * i
+
+        if t.truncated:
+            truncated = Timestep(113 * (i + 1))
+            truncated.obs = torch.ones(2, 84//2, 84//2) * -i
+            truncated.prev = weakref.ref(t)
+            t.next = truncated
+
+        elif not t.done:
+            nt.prev = weakref.ref(t)
+            t.next = weakref.ref(nt)
+
+        buffer.extend(t)
+        t = nt
+
+    print("saving buffer")
+    before = buffer.buffer.state_dict()
+    buffer.save("test")
+
+    print("loading buffer")
+    buffer.load("test")
+    after = buffer.buffer.state_dict()
+
+    timesteps_before_save = before["_storage"]["_storage"]
+    timesteps_after_save = after["_storage"]["_storage"]
+    final_timestep = timesteps_after_save[-1][0]
+    for i in range(len(timesteps_before_save)):
+        bef = timesteps_before_save[i][0]
+        aft = timesteps_after_save[i][0]
+        assert bef.id == aft.id, """TIMESTEP {} FAILED ID CHECK\n{}\n{}\n""".format(i, bef, aft)
+        assert (bef.obs - aft.obs).abs().sum() < 1e-5, """TIMESTEP {} FAILED OBS CHECK\n{}\n{}\n""".format(i, bef, aft)
+        assert bef.done == aft.done, """TIMESTEP {} FAILED DONE CHECK\n{}\n{}\n""".format(i, bef, aft)
+
+        # Skip the next of the last timestep because we artificially truncated it.
+        if bef.next is not None and bef.id != 26:
+            assert bef.truncated == aft.truncated, """TIMESTEP {} FAILED TRUNCATED CHECK\n{}\n{}\n""".format(i, bef,
+                                                                                                             aft)
+            if bef.truncated:
+                assert bef.next == aft.next, """TIMESTEP {} FAILED NEXT CHECK\n{}\n{}\n""".format(i, bef, aft)
+            else:
+                assert bef.next() == aft.next(), """TIMESTEP {} FAILED NEXT CHECK\n{}\n{}\n""".format(i, bef, aft)
+        elif bef.id == 26:
+            final_timestep = aft
+
+        # Skip the prev of the first timestep because we didn't save it.
+        if bef.prev is not None and bef.id != 17:
+            assert aft.prev is not None, """TIMESTEP {} FAILED PREV CHECK\n{}\n{}\n""".format(i, bef, aft)
+            assert bef.prev() == aft.prev(), """TIMESTEP {} FAILED PREV CHECK\n{}\n{}\n""".format(i, bef, aft)
+        assert bef.needs_n_step == aft.needs_n_step, """TIMESTEP {} FAILED NEEDS_N_STEP CHECK\n{}\n{}\n""".format(i,
+                                                                                                                  bef,
+                                                                                                                  aft)
+    assert type(final_timestep.next) is Timestep, "FINAL TIMESTEP FAILED ARTIFICIAL TRUNCATION CHECK\n{}\n".format(final_timestep)
+    print("PASSED SAVE AND LOAD TEST")
+
+
+if __name__ == "__main__":
+    simple_save_load_test()
+    complex_save_load_test()
+
+
