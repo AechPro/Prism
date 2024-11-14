@@ -453,6 +453,12 @@ def complex_save_load_test():
     before = buffer.buffer.state_dict()
     buffer.save("test")
 
+    buffer.empty()
+    del buffer
+    td_buffer = PrioritizedReplayBuffer(storage=ListStorage(max_size=100), collate_fn=lambda x: x, batch_size=5,
+                                        alpha=0.5, beta=0.5)
+    buffer = TimestepBuffer(td_buffer, frame_stack=1, device="cpu", n_step=3, gamma=0.99)
+
     print("loading buffer")
     buffer.load("test")
     after = buffer.buffer.state_dict()
