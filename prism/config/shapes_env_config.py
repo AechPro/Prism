@@ -4,14 +4,14 @@ SHAPES_ENV_CONFIG = Config(**DEFAULT_CONFIG.__dict__)
 SHAPES_ENV_CONFIG.shared_memory_num_floats_per_process = 100_000
 SHAPES_ENV_CONFIG.env_name = "shapes_environment"
 SHAPES_ENV_CONFIG.render = True
-SHAPES_ENV_CONFIG.experience_replay_capacity = 1_000_000
-SHAPES_ENV_CONFIG.num_initial_random_timesteps = 32_000
+SHAPES_ENV_CONFIG.experience_replay_capacity = 10_000_000
+SHAPES_ENV_CONFIG.num_initial_random_timesteps = 1
 
 SHAPES_ENV_CONFIG.evaluation_timestep_horizon = 100_000
 SHAPES_ENV_CONFIG.timesteps_per_report = 10_000
 SHAPES_ENV_CONFIG.timesteps_between_evaluations = 100_000
-SHAPES_ENV_CONFIG.timesteps_per_iteration = 4
-SHAPES_ENV_CONFIG.batch_size = 64
+SHAPES_ENV_CONFIG.timesteps_per_iteration = 32000
+SHAPES_ENV_CONFIG.batch_size = 32
 SHAPES_ENV_CONFIG.gamma = 0.99
 
 SHAPES_ENV_CONFIG.distributional_loss_weight = 1
@@ -62,6 +62,7 @@ SHAPES_ENV_CONFIG.reward_clipping_type = None
 SHAPES_ENV_CONFIG.loss_squish_fn_id = "none"
 
 SHAPES_ENV_CONFIG.use_cuda_graph = True
+SHAPES_ENV_CONFIG.device = "cuda:0"
 SHAPES_ENV_CONFIG.use_layer_norm = True
 SHAPES_ENV_CONFIG.num_processes = 16
 

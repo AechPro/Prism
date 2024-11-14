@@ -70,8 +70,8 @@ def run_learner():
                               SHAPES_ENV_CONFIG)
     from prism import Learner
 
-    config = SHAPES_ENV_CONFIG
-    config.log_to_wandb = True
+    config = MINATAR_CONFIG
+    config.log_to_wandb = False
 
     learner = Learner()
     learner.configure(config)
