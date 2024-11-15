@@ -186,6 +186,79 @@ class Timestep(object):
 
         return timestep, required_links, idx
 
+    @classmethod
+    def deserialize_linked_list(cls, serialized_timesteps, timestep_id_map=None):
+        """
+        Deserialize a list of serialized timesteps into a linked list of Timestep objects.
+
+        Args:
+            serialized_timesteps (list): A list of serialized timesteps, where each
+                serialized timestep is a list of values as returned by Timestep.serialize.
+
+            timestep_id_map (dict, optional): A map of timestep ids to Timestep objects leftover from a prior call to
+                this function. Defaults to None.
+        Returns:
+            list: A list of linked Timestep objects.
+        """
+
+        # Create a list to store the deserialized timesteps, and a map to keep track of the ids.
+        timesteps = []
+        incomplete_timestep_id_map = {}
+        if timestep_id_map is None:
+            timestep_id_map = {}
+
+        # Iterate over the serialized timesteps, and for each one, deserialize it and store it and its links in the map.
+        idx = 0
+        while idx < len(serialized_timesteps):
+            timestep, links, idx = Timestep.deserialize(serialized_timesteps, idx)
+            timestep_id_map[timestep.id] = (timestep, links)
+
+        # Iterate over the map, and for each timestep, set its prev, n_step_next, and next links based on the links stored in the map.
+        idx = 0
+        known_ids = list(timestep_id_map.keys())
+        for ts_id, data in timestep_id_map.items():
+            timestep, links = data
+
+            # If there are only two links the timestep has either been truncated or does not have a next link.
+            if len(links) == 2:
+                n_step_next_id, prev_id = links
+                next_id = None
+            else:
+                n_step_next_id, prev_id, next_id = links
+
+            waiting_links = [None, None, None]
+
+            # Set the prev link.
+            if prev_id is not None:
+                if prev_id in known_ids:
+                    timestep.prev = weakref.ref(timestep_id_map[prev_id][0])
+                else:
+                    waiting_links[1] = prev_id
+
+            # Set the n_step_next link.
+            if n_step_next_id is not None:
+                if n_step_next_id in known_ids:
+                    timestep.n_step_next = weakref.ref(timestep_id_map[n_step_next_id][0])
+                else:
+                    waiting_links[0] = n_step_next_id
+
+            # Set the next link if necessary.
+            if next_id is not None and not timestep.truncated:
+                if next_id in known_ids:
+                    timestep.next = weakref.ref(timestep_id_map[next_id][0])
+                else:
+                    waiting_links[2] = next_id
+
+            if waiting_links == [None, None, None]:
+                timesteps.append(timestep)
+            else:
+                incomplete_timestep_id_map[ts_id] = (timestep, waiting_links)
+
+            idx += 1
+
+        timestep_id_map.clear()
+        return timesteps, incomplete_timestep_id_map
+
     def __repr__(self):
         return (f"Timestep({self.id}, "
                 f"{self.episodic_reward}, "

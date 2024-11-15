@@ -70,8 +70,8 @@ def run_learner():
                               SHAPES_ENV_CONFIG)
     from prism import Learner
 
-    config = MINATAR_CONFIG
-    config.log_to_wandb = False
+    config = ROCKET_LEAGUE_CONFIG
+    config.log_to_wandb = True
 
     learner = Learner()
     learner.configure(config)

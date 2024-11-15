@@ -305,37 +305,10 @@ class TimestepBuffer(object):
         self.buffer._writer.loads(buffer_path)
 
     def _load_serialized_timesteps(self, serialized_timesteps):
-        import weakref
-
-        timestep_id_map = {}
         storage = self.buffer._storage
-
-        idx = 0
-        while idx < len(serialized_timesteps):
-            timestep, links, idx = Timestep.deserialize(serialized_timesteps, idx)
-            timestep_id_map[timestep.id] = (timestep, links)
-
-        idx = 0
-        for ts_id, data in timestep_id_map.items():
-            timestep, links = data
-            if len(links) == 2:
-                n_step_next_id, prev_id = links
-                next_id = None
-            else:
-                n_step_next_id, prev_id, next_id = links
-
-            if prev_id is not None:
-                timestep.prev = weakref.ref(timestep_id_map[prev_id][0])
-
-            if n_step_next_id is not None:
-                timestep.n_step_next = weakref.ref(timestep_id_map[n_step_next_id][0])
-
-            if next_id is not None and not timestep.truncated:
-                timestep.next = weakref.ref(timestep_id_map[next_id][0])
-
-            storage[idx] = [timestep]
-            idx += 1
-        timestep_id_map.clear()
+        deserialized_timesteps, _ = Timestep.deserialize_linked_list(serialized_timesteps)
+        for i in range(len(deserialized_timesteps)):
+            storage[i] = [deserialized_timesteps[i]]
 
 
 def simple_save_load_test():

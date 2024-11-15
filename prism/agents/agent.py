@@ -15,7 +15,7 @@ class Agent(object):
         self.optimizer = optimizer
         self.max_grad_norm = max_grad_norm
         self.use_cuda_graph = use_cuda_graph
-
+        self.n_updates = 0
         self._is_eval = False
 
         self._static_per_weights = None
@@ -47,6 +47,7 @@ class Agent(object):
         else:
             new_per_weights = self._update_without_cuda_graph(batch, per_weights)
 
+        self.n_updates += 1
         return new_per_weights
 
     def _update_without_cuda_graph(self, batch, per_weights=1):
@@ -165,6 +166,7 @@ class Agent(object):
         # Save other stateful data
         state = {
             'action_selector': self.action_selector,
+            'n_updates': self.n_updates,
             'eval_action_selector': self.eval_action_selector,
             'max_grad_norm': self.max_grad_norm,
             'use_cuda_graph': self.use_cuda_graph
@@ -196,6 +198,7 @@ class Agent(object):
         self.eval_action_selector = state['eval_action_selector']
         self.max_grad_norm = state['max_grad_norm']
         self.use_cuda_graph = state['use_cuda_graph']
+        self.n_updates = state['n_updates']
 
         self.train()
 
