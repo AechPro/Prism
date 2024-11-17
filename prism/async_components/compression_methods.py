@@ -56,6 +56,9 @@ class MessageSerializer(object):
         MessageSerializer._compressors[compressor.compression_type.upper()] = compressor
 
     def pack(self, data):
+        if data is None:
+            return None
+
         data = msgpack.packb(data)
         compression_type = "NONE"
         if self._compression_type and self._min_size_to_compress <= len(data):
@@ -65,6 +68,9 @@ class MessageSerializer(object):
         return msgpack.packb((compression_type, data))
 
     def unpack(self, data):
+        if data is None:
+            return None
+
         compression_type, data = msgpack.unpackb(data)
         try:
             data = MessageSerializer._compressors[compression_type].decompress(data)

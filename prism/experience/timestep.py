@@ -1,3 +1,5 @@
+import time
+
 import torch
 from dataclasses import dataclass
 from typing import TypeVar
@@ -56,7 +58,10 @@ class Timestep(object):
         serialized += [self.reward, self.done, self.truncated]
 
         if self.action is not None:
-            serialized.append(self.action)
+            if type(self.action) is torch.Tensor:
+                serialized.append(self.action.item())
+            else:
+                serialized.append(self.action)
         else:
             serialized.append(NULL_VALUE)
 
@@ -98,6 +103,7 @@ class Timestep(object):
 
     @classmethod
     def deserialize(cls, serialized_timestep, idx):
+        print("deserializing",idx)
         timestep_id = int(serialized_timestep[idx])
         idx += 1
 
@@ -202,6 +208,7 @@ class Timestep(object):
         """
 
         # Create a list to store the deserialized timesteps, and a map to keep track of the ids.
+        # t1 = time.perf_counter()
         timesteps = []
         incomplete_timestep_id_map = {}
         if timestep_id_map is None:
@@ -209,13 +216,16 @@ class Timestep(object):
 
         # Iterate over the serialized timesteps, and for each one, deserialize it and store it and its links in the map.
         idx = 0
+        total_timesteps = 0
         while idx < len(serialized_timesteps):
             timestep, links, idx = Timestep.deserialize(serialized_timesteps, idx)
             timestep_id_map[timestep.id] = (timestep, links)
+            total_timesteps += 1
+            print("Deserialized timestep", timestep.id, total_timesteps)
 
         # Iterate over the map, and for each timestep, set its prev, n_step_next, and next links based on the links stored in the map.
         idx = 0
-        known_ids = list(timestep_id_map.keys())
+        # known_ids = list(timestep_id_map.keys())
         for ts_id, data in timestep_id_map.items():
             timestep, links = data
 
@@ -227,29 +237,36 @@ class Timestep(object):
                 n_step_next_id, prev_id, next_id = links
 
             waiting_links = [None, None, None]
+            no_links_remain = True
 
             # Set the prev link.
             if prev_id is not None:
-                if prev_id in known_ids:
-                    timestep.prev = weakref.ref(timestep_id_map[prev_id][0])
+                prev_timestep = timestep_id_map.get(prev_id, None)
+                if prev_timestep is not None:
+                    timestep.prev = weakref.ref(prev_timestep[0])
                 else:
                     waiting_links[1] = prev_id
+                    no_links_remain = False
 
             # Set the n_step_next link.
             if n_step_next_id is not None:
-                if n_step_next_id in known_ids:
-                    timestep.n_step_next = weakref.ref(timestep_id_map[n_step_next_id][0])
+                n_step_next_timestep = timestep_id_map.get(n_step_next_id, None)
+                if n_step_next_timestep is not None:
+                    timestep.n_step_next = weakref.ref(n_step_next_timestep[0])
                 else:
                     waiting_links[0] = n_step_next_id
+                    no_links_remain = False
 
             # Set the next link if necessary.
             if next_id is not None and not timestep.truncated:
-                if next_id in known_ids:
-                    timestep.next = weakref.ref(timestep_id_map[next_id][0])
+                next_timestep = timestep_id_map.get(next_id, None)
+                if next_timestep is not None:
+                    timestep.next = weakref.ref(next_timestep[0])
                 else:
                     waiting_links[2] = next_id
+                    no_links_remain = False
 
-            if waiting_links == [None, None, None]:
+            if no_links_remain:
                 timesteps.append(timestep)
             else:
                 incomplete_timestep_id_map[ts_id] = (timestep, waiting_links)
@@ -257,6 +274,7 @@ class Timestep(object):
             idx += 1
 
         timestep_id_map.clear()
+        # print("Deserialized", len(timesteps), "timesteps in", time.perf_counter() - t1, "seconds")
         return timesteps, incomplete_timestep_id_map
 
     def __repr__(self):

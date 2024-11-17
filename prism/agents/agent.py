@@ -148,6 +148,31 @@ class Agent(object):
         for p1, p2 in zip(self.model.parameters(), self.target_model.parameters()):
             p2.data.copy_(p1.data)
 
+    def set_static_batch(self, batch):
+        self._static_batch = batch
+
+    def get_static_batch(self):
+        return self._static_batch
+
+    def serialize_model(self):
+        state_dict = self.model.state_dict()
+        serialized = []
+        for key, value in state_dict.items():
+            serialized += value.flatten().tolist()
+        return serialized
+
+    def deserialize_model(self, serialized_state_dict):
+        state_dict = self.model.state_dict()
+        deserialized = {}
+        idx = 0
+
+        for key, value in state_dict.items():
+            size = value.numel()
+            deserialized[key] = torch.as_tensor(serialized_state_dict[idx:idx + size]).view_as(value)
+            idx += size
+
+        self.model.load_state_dict(deserialized)
+
     def save(self, directory):
         checkpoint_path = os.path.join(directory, 'agent')
         os.makedirs(checkpoint_path, exist_ok=True)

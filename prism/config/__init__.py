@@ -8,3 +8,4 @@ from .additive_ablation_base_config import ADDITIVE_ABLATION_BASE_CONFIG
 from .subtractive_ablation_base_config import SUBTRACTIVE_ABLATION_BASE_CONFIG
 from .rocket_league_config import ROCKET_LEAGUE_CONFIG
 from .shapes_env_config import SHAPES_ENV_CONFIG
+from .async_test_config import ASYNC_TEST_CONFIG

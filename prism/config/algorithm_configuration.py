@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import json
 
 
 @dataclass
@@ -13,6 +14,11 @@ class Config(object):
     evaluation_timestep_horizon: int
     timesteps_per_report: int
     episode_timestep_limit: int
+
+    run_through_redis: bool
+    redis_host: str
+    redis_port: int
+    redis_side: str
 
     distributional_loss_weight: float
     q_loss_weight: float
@@ -106,3 +112,11 @@ class Config(object):
     frame_stack_size: int
     atari_sticky_actions_prob: float
     atari_noops: int
+
+    def serialize(self):
+        return json.dumps(self.__dict__)
+
+    @classmethod
+    def deserialize(cls, serialized_config):
+        cfg_json = dict(json.loads(serialized_config.decode("utf-8")))
+        return Config(**cfg_json)

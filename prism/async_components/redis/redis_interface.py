@@ -12,6 +12,7 @@ class RedisInterface(object):
     TOTAL_TIMESTEPS_COLLECTED_KEY = "total_timesteps_collected"
     ENV_INFO_KEY = "env_info"
     TRAINING_REWARD_KEY = "training_reward"
+    TRAINING_BATCH_KEY = "training_batch"
 
     START_COLLECTING_COMMAND = "start_collecting"
     SHUTDOWN_COMMAND = "shutdown"
@@ -19,7 +20,7 @@ class RedisInterface(object):
     def __init__(self, host='localhost', port=6379):
         self.redis = Redis(host=host, port=port)
         self.serializer = compression_methods.MessageSerializer()
-        self.max_queue_size = 100_000
+        self.max_queue_size = 100_000_000
         self.last_known_epoch = None
         self.waiting_timestep_id_map = {}
 
@@ -36,10 +37,30 @@ class RedisInterface(object):
         self.redis.set(RedisInterface.CURRENT_COMMAND_KEY, command)
 
     def get_config(self):
-        return self.redis.get(RedisInterface.CONFIG_KEY)
+        serialized_config = self.redis.get(RedisInterface.CONFIG_KEY)
+
+        if serialized_config is not None:
+            from prism.config import Config
+            return Config.deserialize(serialized_config)
+
+        return None
 
     def set_config(self, config):
         self.redis.set(RedisInterface.CONFIG_KEY, config)
+
+    def get_waiting_batches(self):
+        pipe = self.redis.pipeline()
+        pipe.lrange(RedisInterface.TRAINING_BATCH_KEY, 0, self.max_queue_size)
+        pipe.ltrim(RedisInterface.TRAINING_BATCH_KEY, self.max_queue_size, -1)
+        data = pipe.execute()[0]
+
+        if data is not None and len(data) > 0:
+            return [self.serializer.unpack(batch) for batch in data]
+
+        return None
+
+    def add_batch(self, batch):
+        self.redis.lpush(RedisInterface.TRAINING_BATCH_KEY, self.serializer.pack(batch))
 
     def get_env_info(self):
         env_info_vector = self.redis.get(RedisInterface.ENV_INFO_KEY)
@@ -81,16 +102,17 @@ class RedisInterface(object):
         pipe.set(RedisInterface.CURRENT_EPOCH_KEY, current_epoch)
         pipe.set(RedisInterface.MODEL_PARAMS_KEY, self.serializer.pack(serialized_model))
         pipe.get(RedisInterface.TOTAL_TIMESTEPS_COLLECTED_KEY)
-        total_timesteps = pipe.execute()[0]
+        total_timesteps = pipe.execute()[-1]
 
-        return total_timesteps
+        if total_timesteps is None:
+            return 0
+        return int(total_timesteps)
 
     def submit_timesteps(self, timesteps):
         serialized = []
         for timestep in timesteps:
             serialized += timestep.serialize()
         packed_timesteps = self.serializer.pack(serialized)
-
         pipe = self.redis.pipeline()
         pipe.lpush(RedisInterface.TIMESTEPS_KEY, packed_timesteps)
         pipe.ltrim(RedisInterface.TIMESTEPS_KEY, 0, self.max_queue_size)
@@ -110,3 +132,6 @@ class RedisInterface(object):
             serialized_timesteps += self.serializer.unpack(packed_list)
 
         return serialized_timesteps
+
+    def clear_redis(self):
+        self.redis.flushall()

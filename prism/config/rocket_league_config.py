@@ -30,7 +30,7 @@ ROCKET_LEAGUE_CONFIG.embedding_model_act_fn_id = "relu"
 ROCKET_LEAGUE_CONFIG.use_per = False
 ROCKET_LEAGUE_CONFIG.use_adam = True
 ROCKET_LEAGUE_CONFIG.q_loss_fn = "mse"
-ROCKET_LEAGUE_CONFIG.learning_rate = 1e-5
+ROCKET_LEAGUE_CONFIG.learning_rate = 3e-4
 
 ROCKET_LEAGUE_CONFIG.n_step_returns_length = 3
 

@@ -186,6 +186,8 @@ class EnvProcessMemoryInterface(SharedMemoryInterface):
         idx += 1
         data[idx:idx + len_shape] = shape
         idx += len_shape
+        data[idx] = n_elements
+        idx += 1
         data[idx:idx + n_elements] = array.flatten()
         return idx + n_elements
 
@@ -194,15 +196,12 @@ class EnvProcessMemoryInterface(SharedMemoryInterface):
 
         len_shape = int(data[idx])
         idx += 1
-        shape = []
 
-        n_elements = 1
-        for arg in data[idx:idx + len_shape]:
-            shape.append(int(arg))
-            n_elements *= arg
-        n_elements = int(n_elements)
-
+        shape = data[idx:idx + len_shape].astype(np.uint32)
         idx += len_shape
+
+        n_elements = int(data[idx])
+        idx += 1
 
         array = data[idx:idx + n_elements].reshape(shape)
         if copy:

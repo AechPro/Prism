@@ -4,6 +4,7 @@ def build_algorithm(config):
     from prism.factory import collector_factory
     collector = collector_factory.build_collector(config)
     obs_shape, n_acts, n_agents = collector.get_env_info()
+    config.redis_side = "server"
 
     import torch
     import os

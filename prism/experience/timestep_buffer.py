@@ -53,6 +53,26 @@ class TimestepBuffer(object):
     def update_priority(self, indices, priorities):
         self.buffer.update_priority(indices, priorities)
 
+    def set_static_batch(self, batch):
+        self._batch = batch
+        self._obs = self._batch["observation"]
+        self._next_obs = self._batch["next"]["observation"]
+        self._reward = self._batch["next"]["reward"]
+        self._nonterminal = self._batch["nonterminal"]
+        self._gamma = self._batch["gamma"]
+        self._action = self._batch["action"]
+
+        if "cpu" not in self.device:
+            self._cpu_obs_buffer = torch.zeros_like(self._obs, device="cpu")
+            self._cpu_next_obs_buffer = torch.zeros_like(self._next_obs, device="cpu")
+            self._cpu_reward_buffer = torch.zeros_like(self._reward, device="cpu")
+            self._cpu_nonterminal_buffer = torch.zeros_like(self._nonterminal, device="cpu")
+            self._cpu_gamma_buffer = torch.zeros_like(self._gamma, device="cpu")
+            self._cpu_action_buffer = torch.zeros_like(self._action, device="cpu")
+
+    def get_static_batch(self):
+        return self._batch
+
     def empty(self):
         return self.buffer.empty()
 
@@ -63,7 +83,7 @@ class TimestepBuffer(object):
 
         if self._batch is None:
             obs_shape = timesteps[0][0].obs.shape
-            self._batch = TensorDict({
+            batch = TensorDict({
                 "observation": torch.zeros(batch_size, self.frame_stack, *obs_shape, dtype=torch.float32,
                                            device=self.device),
                 "next": TensorDict({
@@ -76,20 +96,7 @@ class TimestepBuffer(object):
                 "action": torch.zeros(batch_size, 1, dtype=torch.long, device=self.device)
             }, batch_size=batch_size, device=self.device)
 
-            self._obs = self._batch["observation"]
-            self._next_obs = self._batch["next"]["observation"]
-            self._reward = self._batch["next"]["reward"]
-            self._nonterminal = self._batch["nonterminal"]
-            self._gamma = self._batch["gamma"]
-            self._action = self._batch["action"]
-
-            if "cpu" not in self.device:
-                self._cpu_obs_buffer = torch.zeros_like(self._obs, device="cpu")
-                self._cpu_next_obs_buffer = torch.zeros_like(self._next_obs, device="cpu")
-                self._cpu_reward_buffer = torch.zeros_like(self._reward, device="cpu")
-                self._cpu_nonterminal_buffer = torch.zeros_like(self._nonterminal, device="cpu")
-                self._cpu_gamma_buffer = torch.zeros_like(self._gamma, device="cpu")
-                self._cpu_action_buffer = torch.zeros_like(self._action, device="cpu")
+            self.set_static_batch(batch)
 
         # print(f"static batch check time: {time.perf_counter()-t1:f}")
         # t1 = time.perf_counter()

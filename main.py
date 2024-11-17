@@ -100,11 +100,46 @@ def run_evaluator():
     evaluator.run_evals()
 
 
+def run_async_learner():
+    from prism.config import (ASYNC_TEST_CONFIG, ROCKET_LEAGUE_CONFIG)
+    from prism import Learner
+
+    config = ROCKET_LEAGUE_CONFIG
+    config.run_through_redis = True
+    config.redis_side = "server"
+
+    learner = Learner()
+    learner.configure(config)
+    learner.learn()
+
+
+def run_async_collector():
+    from prism.async_components.async_experience_collector import AsyncExperienceCollector
+    redis_host = "localhost"
+    redis_port = 6379
+
+    collector = AsyncExperienceCollector(redis_host, redis_port)
+    collector.run()
+
+
+def run_async_experience_buffer():
+    from prism.async_components.async_experience_buffer import AsyncExperienceBuffer
+    redis_host = "localhost"
+    redis_port = 6379
+
+    buffer = AsyncExperienceBuffer(redis_host, redis_port)
+    buffer.run()
+
+
 def main():
     import os
     os.environ["OPENBLAS_NUM_THREADS"] = "1"
+    # run_async_learner()
+    # run_async_collector()
+    run_async_experience_buffer()
+
     # run_evaluator()
-    run_learner()
+    # run_learner()
     # run_experiments()
     # eval_ablation_experiment()
 
