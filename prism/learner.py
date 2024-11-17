@@ -20,8 +20,12 @@ class Learner(object):
         self.per_beta = None
         self.cumulative_timesteps = 0
         self.cumulative_model_updates = 0
+        self.seconds_since_report = 0
+        self.seconds_per_report = 0.25 * 60
         self.timesteps_since_report = 0
         self.timesteps_since_target_model_update = 0
+        self.collected_steps_per_second_ema = None
+        self.overall_steps_per_second_ema = None
         self.loggables = {}
         self.device = None
 
@@ -64,8 +68,9 @@ class Learner(object):
                                                                               random=True)
         self.timesteps_since_report = self.cumulative_timesteps
         self.timetimesteps_since_target_model_update = self.cumulative_timesteps
-        self.logger.set_holdout_data(self.experience_buffer.sample().clone())
+        self.logger.set_holdout_data(self.experience_buffer.sample(return_info=False).clone())
         self.checkpointer.checkpoint(self.cumulative_timesteps)
+        report_timer = time.perf_counter()
 
         while self.cumulative_timesteps < self.timestep_limit:
             loop_start = time.perf_counter()
@@ -75,15 +80,21 @@ class Learner(object):
             timesteps_this_iteration = self.timestep_collector.collect_timesteps(self.timesteps_per_iteration,
                                                                                  self.agent,
                                                                                  self.experience_buffer)
-
             self.loggables["Timestep Collection Time"].append(time.perf_counter() - t1)
-            self.cumulative_timesteps += timesteps_this_iteration
-            self.timesteps_since_report += timesteps_this_iteration
-            self.timesteps_since_target_model_update += timesteps_this_iteration
+            if timesteps_this_iteration > 0:
+                self.cumulative_timesteps += timesteps_this_iteration
+                self.timesteps_since_report += timesteps_this_iteration
+                self.timesteps_since_target_model_update += timesteps_this_iteration
+
+                sps = timesteps_this_iteration / self.loggables["Timestep Collection Time"][-1]
+                if self.collected_steps_per_second_ema is None:
+                    self.collected_steps_per_second_ema = sps
+                else:
+                    self.collected_steps_per_second_ema = self.collected_steps_per_second_ema * 0.9 + 0.1 * sps
 
             ### SAMPLE BATCH ###
-            if self.agent._static_batch is not None and self.cumulative_model_updates == 1:
-                self.experience_buffer._batch = self.agent._static_batch
+            if self.cumulative_model_updates == 1:
+                self.experience_buffer.set_static_batch(self.agent.get_static_batch())
 
             t1 = time.perf_counter()
             batch, info = self.experience_buffer.sample(return_info=True)
@@ -115,10 +126,21 @@ class Learner(object):
 
             ### CHECKPOINT AND REPORT ###
             self.checkpointer.checkpoint(self.cumulative_timesteps)
+            self.seconds_since_report = time.perf_counter() - report_timer
+
             if self.timesteps_since_report >= self.timesteps_per_report:
+                t1 = time.perf_counter()
                 self.report()
+                self.loggables["Report Time"] = time.perf_counter() - t1
+                self.seconds_since_report = 0
 
             self.loggables["Iteration Time"].append(time.perf_counter() - loop_start)
+            if timesteps_this_iteration > 0:
+                sps = timesteps_this_iteration / self.loggables["Iteration Time"][-1]
+                if self.overall_steps_per_second_ema is None:
+                    self.overall_steps_per_second_ema = sps
+                else:
+                    self.overall_steps_per_second_ema = self.overall_steps_per_second_ema * 0.9 + 0.1 * sps
 
     def report(self):
         self._log()
@@ -144,8 +166,8 @@ class Learner(object):
 
         ts_col_time = sum(self.loggables["Timestep Collection Time"])
         iter_time = sum(self.loggables["Iteration Time"])
-        collected_steps_per_second = self.timesteps_since_report / ts_col_time
-        overall_steps_per_second = self.timesteps_since_report / iter_time
+        collected_steps_per_second = self.collected_steps_per_second_ema
+        overall_steps_per_second = self.overall_steps_per_second_ema
 
         if self.use_per:
             self.logger.log_data(data=self.per_beta.get_value(),

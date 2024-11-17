@@ -57,10 +57,10 @@ class RocketSimEnv(object):
         rewards = (
             (EventReward(touch=0.0, goal=1, concede=-1), 50 * reward_scale),
             (TouchBallReward(), 5 * reward_scale),
-            (VelocityPlayerToBallReward(positive_only=True), 2 * reward_scale),
+            (VelocityPlayerToBallReward(positive_only=True), 1.5 * reward_scale),
             (FaceBallReward(), 0.25 * reward_scale),
             (InAirReward(), 0.15 * reward_scale),
-            (VelocityBallToGoalReward(), 5 * reward_scale)
+            (VelocityBallToGoalReward(), 7.5 * reward_scale)
         )
 
         reward_fn = CombinedReward.from_zipped(*rewards)

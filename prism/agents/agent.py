@@ -15,7 +15,7 @@ class Agent(object):
         self.optimizer = optimizer
         self.max_grad_norm = max_grad_norm
         self.use_cuda_graph = use_cuda_graph
-
+        self.n_updates = 0
         self._is_eval = False
 
         self._static_per_weights = None
@@ -47,6 +47,7 @@ class Agent(object):
         else:
             new_per_weights = self._update_without_cuda_graph(batch, per_weights)
 
+        self.n_updates += 1
         return new_per_weights
 
     def _update_without_cuda_graph(self, batch, per_weights=1):
@@ -147,6 +148,31 @@ class Agent(object):
         for p1, p2 in zip(self.model.parameters(), self.target_model.parameters()):
             p2.data.copy_(p1.data)
 
+    def set_static_batch(self, batch):
+        self._static_batch = batch
+
+    def get_static_batch(self):
+        return self._static_batch
+
+    def serialize_model(self):
+        state_dict = self.model.state_dict()
+        serialized = []
+        for key, value in state_dict.items():
+            serialized += value.flatten().tolist()
+        return serialized
+
+    def deserialize_model(self, serialized_state_dict):
+        state_dict = self.model.state_dict()
+        deserialized = {}
+        idx = 0
+
+        for key, value in state_dict.items():
+            size = value.numel()
+            deserialized[key] = torch.as_tensor(serialized_state_dict[idx:idx + size]).view_as(value)
+            idx += size
+
+        self.model.load_state_dict(deserialized)
+
     def save(self, directory):
         checkpoint_path = os.path.join(directory, 'agent')
         os.makedirs(checkpoint_path, exist_ok=True)
@@ -165,6 +191,7 @@ class Agent(object):
         # Save other stateful data
         state = {
             'action_selector': self.action_selector,
+            'n_updates': self.n_updates,
             'eval_action_selector': self.eval_action_selector,
             'max_grad_norm': self.max_grad_norm,
             'use_cuda_graph': self.use_cuda_graph
@@ -196,6 +223,7 @@ class Agent(object):
         self.eval_action_selector = state['eval_action_selector']
         self.max_grad_norm = state['max_grad_norm']
         self.use_cuda_graph = state['use_cuda_graph']
+        self.n_updates = state['n_updates']
 
         self.train()
 

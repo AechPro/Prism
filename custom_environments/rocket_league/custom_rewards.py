@@ -3,7 +3,7 @@ from rlgym_sim.utils import common_values
 import numpy as np
 
 
-class InAirReward(RewardFunction): # We extend the class "RewardFunction"
+class InAirReward(RewardFunction):  # We extend the class "RewardFunction"
     # Empty default constructor (required)
     def __init__(self):
         super().__init__()

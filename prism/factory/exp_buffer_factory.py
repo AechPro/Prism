@@ -8,6 +8,15 @@ from torchrl.envs import SerialEnv, GymEnv, CatFrames, SqueezeTransform, Unsquee
 
 
 def build_exp_buffer(config: Config):
+    if config.run_through_redis:
+        if config.redis_side == "server":
+            from prism.async_components.async_experience_buffer import AsyncExperienceBufferInterface
+            return AsyncExperienceBufferInterface(config.redis_host, config.redis_port, config.device)
+
+        elif config.redis_side == "client":
+            from prism.async_components.async_experience_buffer import AsyncExperienceBuffer
+            return AsyncExperienceBuffer(config.redis_host, config.redis_port)
+
     from prism.experience import TimestepBuffer
 
     if config.use_per:

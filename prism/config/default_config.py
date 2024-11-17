@@ -12,6 +12,11 @@ DEFAULT_CONFIG = Config(
     timesteps_per_report=100_000,
     episode_timestep_limit=108_000,
 
+    run_through_redis=False,
+    redis_host="localhost",
+    redis_port=6379,
+    redis_side="server",
+
     distributional_loss_weight=1,
     q_loss_weight=1,
     batch_size=32,
