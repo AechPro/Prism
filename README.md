@@ -11,7 +11,7 @@ Prism is a modular system of deep Q-learning algorithms and modifications that c
 [N-Step Returns](https://gibberblot.github.io/rl-notes/single-agent/n-step.html)
 
 ## Best Combination
-The default configuration is IDS + IQN + Layer Normalization + 3-step returns with a target network. This seemed
+The default configuration is IDS + IQN + Layer Normalization + 3-step returns without a target network. This seemed
 to perform the best across the MinAtar experiments.
 
 ## Data
