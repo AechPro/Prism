@@ -10,7 +10,7 @@ ROCKET_LEAGUE_CONFIG.num_initial_random_timesteps = 32_000
 ROCKET_LEAGUE_CONFIG.evaluation_timestep_horizon = 100_000
 ROCKET_LEAGUE_CONFIG.timesteps_per_report = 100_000
 ROCKET_LEAGUE_CONFIG.timesteps_between_evaluations = 1_000_000
-ROCKET_LEAGUE_CONFIG.timesteps_per_iteration = 100
+ROCKET_LEAGUE_CONFIG.timesteps_per_iteration = 16
 ROCKET_LEAGUE_CONFIG.batch_size = 64
 ROCKET_LEAGUE_CONFIG.gamma = 0.995
 
@@ -38,7 +38,7 @@ ROCKET_LEAGUE_CONFIG.use_ids = True
 ROCKET_LEAGUE_CONFIG.ids_n_q_head_model_layers = 3
 ROCKET_LEAGUE_CONFIG.ids_n_q_heads = 10
 ROCKET_LEAGUE_CONFIG.ids_q_head_feature_dim = 512
-ROCKET_LEAGUE_CONFIG.ids_ensemble_variation_coef = 1e-5
+ROCKET_LEAGUE_CONFIG.ids_ensemble_variation_coef = 1e-6
 
 ROCKET_LEAGUE_CONFIG.use_iqn = True
 ROCKET_LEAGUE_CONFIG.iqn_n_current_state_quantile_samples = 16
@@ -49,7 +49,7 @@ ROCKET_LEAGUE_CONFIG.iqn_quantile_model_feature_dim = 512
 ROCKET_LEAGUE_CONFIG.iqn_quantile_model_layers = 2
 
 ROCKET_LEAGUE_CONFIG.use_double_q_learning = False
-ROCKET_LEAGUE_CONFIG.use_target_network = True
+ROCKET_LEAGUE_CONFIG.use_target_network = False
 ROCKET_LEAGUE_CONFIG.target_update_period = 20_000
 
 ROCKET_LEAGUE_CONFIG.reward_clipping_type = None

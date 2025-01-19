@@ -27,6 +27,7 @@ class Config(object):
     learning_rate: float
     max_grad_norm: float
 
+    sparse_init_p: float
     reward_clipping_type: str
     loss_squish_fn_id: str
 

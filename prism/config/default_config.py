@@ -24,6 +24,7 @@ DEFAULT_CONFIG = Config(
     learning_rate=6.25e-5,
     max_grad_norm=10.0,
 
+    sparse_init_p=0.0,
     loss_squish_fn_id="none",
     reward_clipping_type="dopamine_clip",
 
@@ -99,7 +100,7 @@ DEFAULT_CONFIG = Config(
     log_to_wandb=False,
     wandb_group_name="debug",
     wandb_run_name="null",
-    wandb_project_name="rainbow-v2",
+    wandb_project_name="Prism",
     device="cuda:0",
     env_device="cpu",
     use_cuda_graph=True,

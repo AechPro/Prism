@@ -5,7 +5,6 @@ import wandb
 class Logger(object):
     def __init__(self, config=None, holdout_data=None):
         self.wandb_run = None
-
         if config is not None:
             if config.log_to_wandb:
                 project_name = config.wandb_project_name
@@ -38,15 +37,12 @@ class Logger(object):
     def log(self, data, group_name, var_name):
         self.log_data(data, group_name, var_name)
 
-    def log_data_debug(self, data, group_name, var_name):
-        if self.enabled:
-            self.log_data(data, group_name, var_name)
-
     def log_data(self, data, group_name, var_name, override_enable=False):
-        name = "{}-{}".format(group_name, var_name)
-        self.current_data[name] = data
-        if self.wandb_run is not None:
-            self.wandb_run.log({name: data}, commit=False)
+        if override_enable or self.enabled:
+            name = "{}-{}".format(group_name, var_name)
+            self.current_data[name] = data
+            if self.wandb_run is not None:
+                self.wandb_run.log({name: data}, commit=False)
 
     def report(self, iteration=None, float_sig_figs=6):
         if iteration is None:

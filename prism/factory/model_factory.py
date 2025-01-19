@@ -61,6 +61,7 @@ def create_model(env_state_shape, env_n_actions, config: Config):
                                     use_layer_norm=config.use_layer_norm,
                                     apply_layer_norm_first_layer=False,  # Don't normalize the input layer.
                                     output_act_fn=act_fn,
+                                    sparse_init_p=config.sparse_init_p,
                                     act_fn=act_fn,
                                     device=config.device)
 
@@ -69,6 +70,7 @@ def create_model(env_state_shape, env_n_actions, config: Config):
                                          feature_dim=config.embedding_model_final_dim,
                                          act_fn=act_fn,
                                          device=config.device,
+                                         sparse_init_p=config.sparse_init_p,
                                          use_layer_norm=config.use_layer_norm)
         config.embedding_model_final_dim = embedding_model.output_dim
 
@@ -76,6 +78,7 @@ def create_model(env_state_shape, env_n_actions, config: Config):
         embedding_model = MinAtarModel(in_channels=env_state_shape[-1],
                                        act_fn=act_fn,
                                        device=config.device,
+                                       sparse_init_p=config.sparse_init_p,
                                        use_layer_norm=config.use_layer_norm)
         config.embedding_model_final_dim = embedding_model.output_dim
 
@@ -92,6 +95,7 @@ def create_model(env_state_shape, env_n_actions, config: Config):
                              model_layer_size=config.iqn_quantile_model_feature_dim,
                              model_activation=act_fn,
                              use_double_q_learning=config.use_double_q_learning,
+                             sparse_init_p=config.sparse_init_p,
 
                              squish_function=squish_function,
                              unsquish_function=unsquish_function,
@@ -114,6 +118,7 @@ def create_model(env_state_shape, env_n_actions, config: Config):
                             use_layer_norm=config.use_layer_norm,
                             n_model_layers=config.ids_n_q_head_model_layers,
                             model_layer_size=config.ids_q_head_feature_dim,
+                            sparse_init_p=config.sparse_init_p,
                             model_activation=act_fn,
                             squish_function=squish_function,
                             unsquish_function=unsquish_function,
@@ -129,6 +134,7 @@ def create_model(env_state_shape, env_n_actions, config: Config):
                             use_layer_norm=config.use_layer_norm,
                             n_model_layers=config.dqn_n_model_layers,
                             model_layer_size=config.dqn_n_model_feature_dim,
+                            sparse_init_p=config.sparse_init_p,
                             model_activation=act_fn,
                             squish_function=squish_function,
                             unsquish_function=unsquish_function,

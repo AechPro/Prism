@@ -65,12 +65,20 @@ def run_learner():
                               LUNAR_LANDER_CFG,
                               MINATAR_CONFIG,
                               SIMPLE_TRAP_CONFIG,
+                              SUBTRACTIVE_ABLATION_BASE_CONFIG,
                               REVISITING_RAINBOW_MINATAR_CONFIG,
                               ROCKET_LEAGUE_CONFIG,
                               SHAPES_ENV_CONFIG)
     from prism import Learner
 
-    config = ROCKET_LEAGUE_CONFIG
+    config = SUBTRACTIVE_ABLATION_BASE_CONFIG
+    config.wandb_project_name = "Prism"
+    config.env_name = "MinAtar/SpaceInvaders-v1"
+
+    config.use_per = False
+    config.use_layer_norm = False
+    config.sparse_init_p = 0.9
+
     config.log_to_wandb = True
 
     learner = Learner()
@@ -136,10 +144,10 @@ def main():
     os.environ["OPENBLAS_NUM_THREADS"] = "1"
     # run_async_learner()
     # run_async_collector()
-    run_async_experience_buffer()
+    # run_async_experience_buffer()
 
     # run_evaluator()
-    # run_learner()
+    run_learner()
     # run_experiments()
     # eval_ablation_experiment()
 

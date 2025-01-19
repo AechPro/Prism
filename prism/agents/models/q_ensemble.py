@@ -8,7 +8,7 @@ class QEnsemble(nn.Module):
                  n_model_layers=0, model_layer_size=0, model_activation=nn.ReLU,
                  q_loss_function=None, ensemble_variation_coef=0, q_loss_weight=1,
                  squish_function=None, unsquish_function=None,
-                 use_double_q_learning=True,
+                 use_double_q_learning=True, sparse_init_p=0.0,
                  device="cpu"):
 
         super().__init__()
@@ -27,7 +27,8 @@ class QEnsemble(nn.Module):
             if n_model_layers > 0:
                 branch = FFNNModel(n_input_features=n_input_features, n_output_features=n_actions,
                                    n_layers=n_model_layers, layer_width=model_layer_size, use_layer_norm=use_layer_norm,
-                                   output_act_fn=None, act_fn=model_activation, device=device)
+                                   sparse_init_p=sparse_init_p, output_act_fn=None, act_fn=model_activation, device=device)
+
                 q_heads.append(branch)
             else:
                 if use_layer_norm:

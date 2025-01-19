@@ -9,7 +9,7 @@ class IQNModel(nn.Module):
                  squish_function=None, unsquish_function=None, huber_k=1.0,
                  n_current_quantile_samples=8, n_next_quantile_samples=8,
                  n_quantile_samples_per_action=200, use_double_q_learning=True,
-                 distributional_loss_weight=1,
+                 distributional_loss_weight=1, sparse_init_p=0.0,
                  propagate_grad=True, risk_policy=None, device="cpu"):
 
         super().__init__()
@@ -34,7 +34,9 @@ class IQNModel(nn.Module):
             from prism.agents.models import FFNNModel
             self.model = FFNNModel(n_input_features=n_input_features, n_output_features=model_layer_size,
                                    n_layers=n_model_layers, layer_width=model_layer_size, use_layer_norm=use_layer_norm,
-                                   output_act_fn=model_activation, act_fn=model_activation, device=device)
+                                   output_act_fn=model_activation, act_fn=model_activation, device=device,
+                                   sparse_init_p=sparse_init_p, use_p_norm=True)
+
             n_input_features = model_layer_size
 
         if use_layer_norm:
