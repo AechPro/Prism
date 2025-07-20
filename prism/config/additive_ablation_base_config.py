@@ -46,4 +46,4 @@ ADDITIVE_ABLATION_BASE_CONFIG.reward_clipping_type = "dopamine clamp",
 ADDITIVE_ABLATION_BASE_CONFIG.log_to_wandb = True
 ADDITIVE_ABLATION_BASE_CONFIG.render = False
 ADDITIVE_ABLATION_BASE_CONFIG.wandb_group_name = "Second Prism Additive Ablation Experiment"
-ADDITIVE_ABLATION_BASE_CONFIG.num_processes = 16
+ADDITIVE_ABLATION_BASE_CONFIG.num_processes = 1

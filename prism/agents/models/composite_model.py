@@ -63,7 +63,7 @@ class CompositeModel(nn.Module):
             q_function_estimates = self.q_function_model(embedded_state)
         else:
             if for_action and type(self.distribution_model) is IQNModel:
-                q_function_estimates = [return_distribution_estimate.mean(dim=0)]
+                q_function_estimates = return_distribution_estimate.mean(dim=0).unsqueeze(-1)
             else:
                 q_function_estimates = None
 
