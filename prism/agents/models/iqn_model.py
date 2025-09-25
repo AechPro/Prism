@@ -35,7 +35,7 @@ class IQNModel(nn.Module):
             self.model = FFNNModel(n_input_features=n_input_features, n_output_features=model_layer_size,
                                    n_layers=n_model_layers, layer_width=model_layer_size, use_layer_norm=use_layer_norm,
                                    output_act_fn=model_activation, act_fn=model_activation, device=device,
-                                   sparse_init_p=sparse_init_p, use_p_norm=True)
+                                   sparse_init_p=sparse_init_p)
 
             n_input_features = model_layer_size
 

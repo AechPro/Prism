@@ -3,6 +3,37 @@ import torch.nn as nn
 import numpy as np
 
 
+class PIDActivation(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.kp = nn.Parameter(torch.tensor(1.0))
+        self.ki = nn.Parameter(torch.tensor(0.1))
+        self.kd = nn.Parameter(torch.tensor(0.1))
+
+        self.integral = None
+        self.prev_x = None
+
+    def forward(self, x):
+        if self.integral is None or x.numel() != self.prev_x.numel():
+            self.integral = torch.zeros_like(x, requires_grad=False)
+
+        if self.prev_x is None or x.numel() != self.prev_x.numel():
+            derivative = 0
+        else:
+            derivative = x - self.prev_x
+
+        output = self.kp * x + self.ki * (self.integral + x) + self.kd * derivative
+
+        self.integral += x.detach().clone()
+        self.prev_x = x.detach().clone()
+
+        return output
+
+    def reset(self):
+        self.integral = None
+        self.prev_x = None
+
+
 class PNorm(nn.Module):
     def forward(self, x):
         if len(x.shape) == 2:
@@ -28,26 +59,26 @@ class FFNNModel(nn.Module):
         self.device = device
 
         layers = []
-        in_widths = [n_input_features] + [layer_width for _ in range(n_layers - 1)]
-        out_widths = [layer_width for _ in range(n_layers-1)] + [n_output_features]
-        for i in range(n_layers):
-            if use_layer_norm:
-                if apply_layer_norm_first_layer and i == 0:
-                    layers.append(nn.LayerNorm(in_widths[i]))
-                elif i != 0:
-                    layers.append(nn.LayerNorm(in_widths[i]))
 
+        in_widths = [n_input_features] + [layer_width]*n_layers
+        out_widths = [layer_width]*n_layers + [n_output_features]
+
+        for i in range(len(in_widths)):
             layers.append(nn.Linear(in_widths[i], out_widths[i]))
-            if i != n_layers - 1:
+            if use_layer_norm:
+                if i != len(in_widths) - 1: # Will not apply layer norm at final layer. This is a small issue because a FFNN embedder won't have layer norm connecting it to the heads.
+                    layers.append(nn.LayerNorm(out_widths[i]))
+            if i != len(in_widths) - 1:
                 layers.append(act_fn())
 
         if output_act_fn is not None:
-            layers.append(output_act_fn())
+            if output_act_fn == torch.nn.Softmax:
+                layers.append(output_act_fn(dim=-1))
+            else:
+                layers.append(output_act_fn())
 
         if use_p_norm:
-            layers.append(PNorm())
-        else:
-            layers.insert(-1, PNorm())
+            layers.insert(-2, PNorm())
 
         self.model = nn.Sequential(*layers).to(device)
 

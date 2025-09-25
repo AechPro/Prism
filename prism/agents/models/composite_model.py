@@ -108,7 +108,6 @@ class CompositeModel(nn.Module):
             batch_acts = batch["action"].flatten().long()
 
         dones_and_gamma = batch_gammas * batch_dones
-
         embedded_obs = self.embedding_model(batch_obs)
         with torch.no_grad():
             if target_model is not None:

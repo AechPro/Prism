@@ -1,5 +1,3 @@
-
-
 def eval_ablation_experiment():
     import os
     import yaml
@@ -31,7 +29,7 @@ def eval_ablation_experiment():
                         continue
 
                     cfg_path = os.path.join(wandb_folder_path, wandb_run_folder, "files", "config.yaml")
-                    with (open(cfg_path) as f):
+                    with open(cfg_path) as f:
                         run_config = yaml.safe_load(f)
                         if "wandb_project_name" not in run_config.keys():
                             continue
@@ -70,16 +68,20 @@ def run_learner():
                               ROCKET_LEAGUE_CONFIG,
                               SHAPES_ENV_CONFIG)
     from prism import Learner
+    config = LUNAR_LANDER_CFG
+    config.use_cuda_graph = False
+    # config = MINATAR_CONFIG
+    # def _load_yaml():
+    #     import yaml
+    #     with open("test.yaml") as f:
+    #         run_config = yaml.safe_load(f)
+    #     for attr, yaml_dict in run_config.items():
+    #         if hasattr(config, attr):
+    #             print(attr, "->", yaml_dict["value"])
+    #             setattr(config, attr, type(getattr(config, attr))(yaml_dict["value"]))
 
-    config = SUBTRACTIVE_ABLATION_BASE_CONFIG
-    config.wandb_project_name = "Prism"
-    config.env_name = "MinAtar/SpaceInvaders-v1"
-
-    config.use_per = False
-    config.use_layer_norm = False
-    config.sparse_init_p = 0.9
-
-    config.log_to_wandb = True
+    # _load_yaml()
+    config.log_to_wandb = False
 
     learner = Learner()
     learner.configure(config)
@@ -112,9 +114,9 @@ def run_async_learner():
     from prism.config import (ASYNC_TEST_CONFIG, ROCKET_LEAGUE_CONFIG)
     from prism import Learner
 
-    config = ROCKET_LEAGUE_CONFIG
-    config.run_through_redis = True
-    config.redis_side = "server"
+    config = ASYNC_TEST_CONFIG
+    # config.run_through_redis = True
+    # config.redis_side = "server"
 
     learner = Learner()
     learner.configure(config)
@@ -143,11 +145,12 @@ def main():
     import os
     os.environ["OPENBLAS_NUM_THREADS"] = "1"
     # run_async_learner()
-    # run_async_collector()
+    run_async_collector()
     # run_async_experience_buffer()
 
+
     # run_evaluator()
-    run_learner()
+    # run_learner()
     # run_experiments()
     # eval_ablation_experiment()
 

@@ -98,12 +98,17 @@ class Timestep(object):
         for i in range(len(serialized)):
             if serialized[i] is None:
                 serialized[i] = NULL_VALUE
-
+        # print("-----TIMESTEP SERIALIZED----")
+        # print(self)
+        # print(serialized)
+        # print("prev ref:",self.prev)
+        # if self.prev is not None:
+        #     print("prev:",self.prev())
+        # print("-----------------------------\n")
         return serialized
 
     @classmethod
     def deserialize(cls, serialized_timestep, idx):
-        print("deserializing",idx)
         timestep_id = int(serialized_timestep[idx])
         idx += 1
 
@@ -190,6 +195,7 @@ class Timestep(object):
             required_links = (n_step_next_id, prev_id)
             truncated_timestep.prev = weakref.ref(timestep)
 
+        
         return timestep, required_links, idx
 
     @classmethod
@@ -221,7 +227,7 @@ class Timestep(object):
             timestep, links, idx = Timestep.deserialize(serialized_timesteps, idx)
             timestep_id_map[timestep.id] = (timestep, links)
             total_timesteps += 1
-            print("Deserialized timestep", timestep.id, total_timesteps)
+            # print("Deserialized timestep", timestep.id, total_timesteps)
 
         # Iterate over the map, and for each timestep, set its prev, n_step_next, and next links based on the links stored in the map.
         idx = 0
@@ -267,6 +273,9 @@ class Timestep(object):
                     no_links_remain = False
 
             if no_links_remain:
+                # print("-----TIMESTEP DESERIALIZED----")
+                # print(timestep)
+                # print("-----------------------------\n")
                 timesteps.append(timestep)
             else:
                 incomplete_timestep_id_map[ts_id] = (timestep, waiting_links)

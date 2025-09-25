@@ -5,6 +5,7 @@ import weakref
 import os
 import pickle
 import time
+from cProfile import Profile
 
 
 class TimestepBuffer(object):
@@ -49,7 +50,7 @@ class TimestepBuffer(object):
             return td_batch, info
         else:
             return td_batch
-
+            
     def update_priority(self, indices, priorities):
         self.buffer.update_priority(indices, priorities)
 

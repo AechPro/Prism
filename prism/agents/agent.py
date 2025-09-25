@@ -73,18 +73,21 @@ class Agent(object):
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.max_grad_norm)
             self.optimizer.step()
 
+            # for p in self.model.parameters():
+            #     p.data.clamp_(-3, 3)
+
         return new_per_weights
 
     def _update_with_cuda_graph(self, batch, per_weights=1):
         if self._learn_cuda_graph is None:
             self._build_update_cuda_graph(batch, per_weights)
 
-            self._static_batch["observation"].copy_(batch["observation"])
-            self._static_batch["next"]["observation"].copy_(batch["next"]["observation"])
-            self._static_batch["next"]["reward"].copy_(batch["next"]["reward"])
-            self._static_batch["action"].copy_(batch["action"])
-            self._static_batch["nonterminal"].copy_(batch["nonterminal"])
-            self._static_batch["gamma"].copy_(batch["gamma"])
+        self._static_batch["observation"].copy_(batch["observation"])
+        self._static_batch["next"]["observation"].copy_(batch["next"]["observation"])
+        self._static_batch["next"]["reward"].copy_(batch["next"]["reward"])
+        self._static_batch["action"].copy_(batch["action"])
+        self._static_batch["nonterminal"].copy_(batch["nonterminal"])
+        self._static_batch["gamma"].copy_(batch["gamma"])
 
         if type(per_weights) is torch.Tensor:
             self._static_per_weights.copy_(per_weights)
@@ -130,7 +133,7 @@ class Agent(object):
         total_loss = 0
         with torch.cuda.graph(self._learn_cuda_graph):
             self._static_distribution_loss, self._static_q_loss, self._static_new_per_weights = self.model.get_losses(
-                self._static_batch, self.model)
+                self._static_batch, self.target_model)
             if self._static_distribution_loss is not None:
                 total_loss += (self._static_distribution_loss * self._static_per_weights).mean()
 

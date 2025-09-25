@@ -40,14 +40,14 @@ class RocketSimEnv(object):
         from rlgym_sim.utils.obs_builders import DefaultObs
         from rlgym_sim.utils.terminal_conditions.common_conditions import NoTouchTimeoutCondition, \
             GoalScoredCondition
-        from custom_environments.rocket_league.custom_rewards import InAirReward, TouchBallReward
+        from custom_environments.rocket_league.custom_rewards import InAirReward, StrongTouchReward
         from rlgym_sim.utils import common_values
         from rlgym_tools.extra_action_parsers.lookup_act import LookupAction
         spawn_opponents = True
         team_size = 1
         game_tick_rate = 120
         tick_skip = 8
-        timeout_seconds = 30
+        timeout_seconds = 10
         timeout_ticks = int(round(timeout_seconds * game_tick_rate / tick_skip))
 
         action_parser = LookupAction()
@@ -55,12 +55,12 @@ class RocketSimEnv(object):
 
         reward_scale = 0.01
         rewards = (
-            (EventReward(touch=0.0, goal=1, concede=-1), 50 * reward_scale),
-            (TouchBallReward(), 5 * reward_scale),
-            (VelocityPlayerToBallReward(positive_only=True), 1.5 * reward_scale),
+            (InAirReward(), 0.25 * reward_scale),
             (FaceBallReward(), 0.25 * reward_scale),
-            (InAirReward(), 0.15 * reward_scale),
-            (VelocityBallToGoalReward(), 7.5 * reward_scale)
+            (VelocityPlayerToBallReward(positive_only=True), 4.0 * reward_scale),
+            (StrongTouchReward(20, 100), 60 * reward_scale),
+            (VelocityBallToGoalReward(), 2.0 * reward_scale),
+            (EventReward(touch=0.0, goal=1, concede=-1), 150 * reward_scale)
         )
 
         reward_fn = CombinedReward.from_zipped(*rewards)

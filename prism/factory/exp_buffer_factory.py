@@ -17,7 +17,8 @@ def build_exp_buffer(config: Config):
             from prism.async_components.async_experience_buffer import AsyncExperienceBuffer
             return AsyncExperienceBuffer(config.redis_host, config.redis_port)
 
-    from prism.experience import TimestepBuffer
+    from prism.experience.faster_timestep_buffer import FasterTimestepBuffer
+    from prism.experience.timestep_buffer import TimestepBuffer
 
     if config.use_per:
         td_buffer = PrioritizedReplayBuffer(
@@ -33,5 +34,5 @@ def build_exp_buffer(config: Config):
             batch_size=config.batch_size)
 
     buffer = TimestepBuffer(td_buffer, frame_stack=config.frame_stack_size, device=config.device,
-                            n_step=config.n_step_returns_length, gamma=config.gamma)
+                                  n_step=config.n_step_returns_length, gamma=config.gamma)
     return buffer

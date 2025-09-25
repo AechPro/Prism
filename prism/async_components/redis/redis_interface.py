@@ -12,15 +12,15 @@ class RedisInterface(object):
     TOTAL_TIMESTEPS_COLLECTED_KEY = "total_timesteps_collected"
     ENV_INFO_KEY = "env_info"
     TRAINING_REWARD_KEY = "training_reward"
+    TRAINING_REWARD_LIST_KEY = "training_reward_list"
     TRAINING_BATCH_KEY = "training_batch"
-
     START_COLLECTING_COMMAND = "start_collecting"
     SHUTDOWN_COMMAND = "shutdown"
 
     def __init__(self, host='localhost', port=6379):
         self.redis = Redis(host=host, port=port)
         self.serializer = compression_methods.MessageSerializer()
-        self.max_queue_size = 100_000_000
+        self.max_queue_size = 100_000
         self.last_known_epoch = None
         self.waiting_timestep_id_map = {}
 
@@ -29,6 +29,30 @@ class RedisInterface(object):
 
     def set_training_reward(self, reward):
         self.redis.set(RedisInterface.TRAINING_REWARD_KEY, reward)
+
+    # Training reward list helpers (multi-collector safe)
+    def add_training_reward_sample(self, reward: float):
+        try:
+            val = float(reward)
+        except Exception:
+            # Best effort: ignore non-numeric samples
+            return
+        self.redis.lpush(RedisInterface.TRAINING_REWARD_LIST_KEY, self.serializer.pack(val))
+
+    def get_and_clear_training_rewards(self):
+        pipe = self.redis.pipeline()
+        pipe.lrange(RedisInterface.TRAINING_REWARD_LIST_KEY, 0, -1)
+        pipe.delete(RedisInterface.TRAINING_REWARD_LIST_KEY)
+        data = pipe.execute()[0]
+        if not data:
+            return []
+        rewards = []
+        for packed in data:
+            try:
+                rewards.append(float(self.serializer.unpack(packed)))
+            except Exception:
+                continue
+        return rewards
 
     def get_current_command(self):
         return self.redis.get(RedisInterface.CURRENT_COMMAND_KEY)
@@ -50,17 +74,25 @@ class RedisInterface(object):
 
     def get_waiting_batches(self):
         pipe = self.redis.pipeline()
-        pipe.lrange(RedisInterface.TRAINING_BATCH_KEY, 0, self.max_queue_size)
-        pipe.ltrim(RedisInterface.TRAINING_BATCH_KEY, self.max_queue_size, -1)
+        pipe.lrange(RedisInterface.TRAINING_BATCH_KEY, 0, -1)
+        pipe.delete(RedisInterface.TRAINING_BATCH_KEY)
         data = pipe.execute()[0]
-
         if data is not None and len(data) > 0:
             return [self.serializer.unpack(batch) for batch in data]
-
         return None
 
     def add_batch(self, batch):
-        self.redis.lpush(RedisInterface.TRAINING_BATCH_KEY, self.serializer.pack(batch))
+        # Newest batch at index 0; keep only the two most recent batches by trimming right side.
+        pipe = self.redis.pipeline()
+        pipe.lpush(RedisInterface.TRAINING_BATCH_KEY, self.serializer.pack(batch))
+        pipe.ltrim(RedisInterface.TRAINING_BATCH_KEY, 0, 10)
+        pipe.execute()
+
+    def pop_latest_training_batch(self):
+        packed = self.redis.lpop(RedisInterface.TRAINING_BATCH_KEY)
+        if packed is None:
+            return None
+        return self.serializer.unpack(packed)
 
     def get_env_info(self):
         env_info_vector = self.redis.get(RedisInterface.ENV_INFO_KEY)
@@ -135,3 +167,4 @@ class RedisInterface(object):
 
     def clear_redis(self):
         self.redis.flushall()
+        self.redis.memory_purge()

@@ -71,15 +71,14 @@ class Learner(object):
         self.logger.set_holdout_data(self.experience_buffer.sample(return_info=False).clone())
         self.checkpointer.checkpoint(self.cumulative_timesteps)
         report_timer = time.perf_counter()
-
         while self.cumulative_timesteps < self.timestep_limit:
             loop_start = time.perf_counter()
 
             ### COLLECT TIMESTEPS ###
             t1 = time.perf_counter()
             timesteps_this_iteration = self.timestep_collector.collect_timesteps(self.timesteps_per_iteration,
-                                                                                 self.agent,
-                                                                                 self.experience_buffer)
+                                                                                self.agent,
+                                                                                self.experience_buffer)
             self.loggables["Timestep Collection Time"].append(time.perf_counter() - t1)
             if timesteps_this_iteration > 0:
                 self.cumulative_timesteps += timesteps_this_iteration
@@ -93,7 +92,7 @@ class Learner(object):
                     self.collected_steps_per_second_ema = self.collected_steps_per_second_ema * 0.9 + 0.1 * sps
 
             ### SAMPLE BATCH ###
-            if self.cumulative_model_updates == 1:
+            if self.cumulative_model_updates == 1 and self.agent.use_cuda_graph:
                 self.experience_buffer.set_static_batch(self.agent.get_static_batch())
 
             t1 = time.perf_counter()

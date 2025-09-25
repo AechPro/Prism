@@ -11,7 +11,7 @@ class AsyncExperienceCollector(object):
         self._collector = None
         self._config = None
         self._exp_buffer_interface = AsyncExperienceBufferInterface(redis_host, redis_port, "cpu")
-        self._time_between_command_pings = 10.0
+        self._time_between_command_pings = 1
         self._time_since_last_command_ping = 0.0
 
     def wait_for_config(self):
@@ -48,21 +48,24 @@ class AsyncExperienceCollector(object):
                                           self._exp_buffer_interface, random=True)
 
         running = True
+        collected = 0
         while running:
-            t1 = time.perf_counter()
-            self._collector.collect_timesteps(100, self._agent, self._exp_buffer_interface, random=False)
-            print(time.perf_counter() - t1, "seconds to collect 100 timesteps")
-            print(time.perf_counter() - self._time_since_last_command_ping, "|", self._time_between_command_pings)
-
-            if time.perf_counter() - self._time_since_last_command_ping > self._time_between_command_pings:
+            collected += self._collector.collect_timesteps(10, self._agent, self._exp_buffer_interface, random=False)
+            if collected >= self._config.timesteps_per_iteration and time.perf_counter() - self._time_since_last_command_ping > self._time_between_command_pings:
                 current_command = self._redis_interface.get_current_command()
                 running = current_command != RedisInterface.SHUTDOWN_COMMAND
 
                 latest_model = self._redis_interface.get_latest_model()
                 if latest_model is not None:
                     self._agent.deserialize_model(latest_model)
-                    print("Deserializing model")
+                    try:
+                        self._redis_interface.add_training_reward_sample(float(self._collector._training_reward))
+                        self._redis_interface.set_training_reward(float(self._collector._training_reward))
+                    except Exception:
+                        pass
+
                 self._time_since_last_command_ping = time.perf_counter()
+                collected = 0
 
 class AsyncExperienceCollectorInterface(object):
     def __init__(self, config):
@@ -78,8 +81,7 @@ class AsyncExperienceCollectorInterface(object):
 
         self._last_timestep_measurement = 0
         self._last_update_timestamp = 0
-        self._time_between_updates = 15
-
+        self._time_between_updates = 1
     def get_env_info(self):
         obs_shape, n_acts, n_agents = self._redis_interface.get_env_info()
         return obs_shape, n_acts, n_agents
@@ -90,7 +92,6 @@ class AsyncExperienceCollectorInterface(object):
 
     def collect_timesteps(self, n_timesteps, agent, exp_buffer, random=False):
         n_collected = 0
-
         if time.perf_counter() - self._last_update_timestamp > self._time_between_updates:
             total_timesteps = self._redis_interface.set_latest_model(agent.serialize_model(), agent.n_updates)
 
@@ -105,10 +106,25 @@ class AsyncExperienceCollectorInterface(object):
         self._redis_interface.set_current_command(RedisInterface.SHUTDOWN_COMMAND)
 
     def log(self, logger):
-        rew = self._redis_interface.get_training_reward()
-        if rew is None:
-            return
+        samples = self._redis_interface.get_and_clear_training_rewards()
+        avg_rew = None
+        if samples:
+            avg_rew = sum(samples) / len(samples)
 
-        logger.log_data(data=rew,
-                        group_name="Report/Rewards",
-                        var_name="Training Reward")
+        last_rew = self._redis_interface.get_training_reward()
+        try:
+            last_rew = float(last_rew) if last_rew is not None else None
+        except Exception:
+            last_rew = None
+
+        if avg_rew is not None:
+            logger.log_data(data=avg_rew,
+                            group_name="Report/Rewards",
+                            var_name="Training Reward")
+            logger.log_data(data=len(samples),
+                            group_name="Report/Rewards",
+                            var_name="Training Reward Samples")
+        elif last_rew is not None:
+            logger.log_data(data=last_rew,
+                            group_name="Report/Rewards",
+                            var_name="Training Reward")

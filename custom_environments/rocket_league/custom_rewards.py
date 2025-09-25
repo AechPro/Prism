@@ -27,15 +27,18 @@ class InAirReward(RewardFunction):  # We extend the class "RewardFunction"
             return 0
 
 
-class TouchBallReward(RewardFunction):
-    def __init__(self):
+class StrongTouchReward(RewardFunction):
+    def __init__(self, min_speed_kph=20, max_speed_kph=120):
         super().__init__()
+        self.min_vel = min_speed_kph / (250. / 9.)
+        self.max_vel = max_speed_kph / (250. / 9.)
         self.prev_ball_vel = None
 
     def reset(self, initial_state):
         self.prev_ball_vel = None
 
     def get_reward(self, player, state, previous_action):
+        reward = 0
         if player.team_num == common_values.ORANGE_TEAM:
             ball = state.inverted_ball
         else:
@@ -46,18 +49,9 @@ class TouchBallReward(RewardFunction):
             return 0
 
         if player.ball_touched:
-            diff_vel = ball.linear_velocity - self.prev_ball_vel
-
-            # ||vel|| / max_speed can be at most 1.
-            ball_accel = np.linalg.norm(diff_vel) / common_values.BALL_MAX_SPEED
-
-            # Map accel to [-5, 5] for sigmoid.
-            ball_accel = 10 * (ball_accel - 0.5)
-
-            # Squish accel with sigmoid.
-            reward = 1 / (1 + np.exp(-ball_accel))
-        else:
-            reward = 0
-
+            acceleration = np.linalg.norm(ball.linear_velocity - self.prev_ball_vel)
+            if acceleration >= self.min_vel:
+                reward = min(1, acceleration / self.max_vel)
+                
         self.prev_ball_vel = ball.linear_velocity
         return reward

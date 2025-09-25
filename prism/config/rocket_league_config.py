@@ -5,14 +5,14 @@ ROCKET_LEAGUE_CONFIG.shared_memory_num_floats_per_process = 100_000
 ROCKET_LEAGUE_CONFIG.env_name = "rocket_league"
 ROCKET_LEAGUE_CONFIG.render = True
 ROCKET_LEAGUE_CONFIG.experience_replay_capacity = 10_000_000
-ROCKET_LEAGUE_CONFIG.num_initial_random_timesteps = 32_000
+ROCKET_LEAGUE_CONFIG.num_initial_random_timesteps = 50_000
 
 ROCKET_LEAGUE_CONFIG.evaluation_timestep_horizon = 100_000
 ROCKET_LEAGUE_CONFIG.timesteps_per_report = 100_000
 ROCKET_LEAGUE_CONFIG.timesteps_between_evaluations = 1_000_000
-ROCKET_LEAGUE_CONFIG.timesteps_per_iteration = 16
-ROCKET_LEAGUE_CONFIG.batch_size = 64
-ROCKET_LEAGUE_CONFIG.gamma = 0.995
+ROCKET_LEAGUE_CONFIG.timesteps_per_iteration = 1_000
+ROCKET_LEAGUE_CONFIG.batch_size = 20_000
+ROCKET_LEAGUE_CONFIG.gamma = 0.99
 
 ROCKET_LEAGUE_CONFIG.distributional_loss_weight = 1
 ROCKET_LEAGUE_CONFIG.q_loss_weight = 10
@@ -30,11 +30,12 @@ ROCKET_LEAGUE_CONFIG.embedding_model_act_fn_id = "relu"
 ROCKET_LEAGUE_CONFIG.use_per = False
 ROCKET_LEAGUE_CONFIG.use_adam = True
 ROCKET_LEAGUE_CONFIG.q_loss_fn = "mse"
-ROCKET_LEAGUE_CONFIG.learning_rate = 3e-4
+ROCKET_LEAGUE_CONFIG.learning_rate = 1e-4
 
 ROCKET_LEAGUE_CONFIG.n_step_returns_length = 3
 
 ROCKET_LEAGUE_CONFIG.use_ids = True
+ROCKET_LEAGUE_CONFIG.ids_use_random_samples = True
 ROCKET_LEAGUE_CONFIG.ids_n_q_head_model_layers = 3
 ROCKET_LEAGUE_CONFIG.ids_n_q_heads = 10
 ROCKET_LEAGUE_CONFIG.ids_q_head_feature_dim = 512
@@ -57,7 +58,7 @@ ROCKET_LEAGUE_CONFIG.loss_squish_fn_id = "none"
 
 ROCKET_LEAGUE_CONFIG.use_cuda_graph = True
 ROCKET_LEAGUE_CONFIG.use_layer_norm = True
-ROCKET_LEAGUE_CONFIG.num_processes = 16
+ROCKET_LEAGUE_CONFIG.num_processes = 64
 
 ROCKET_LEAGUE_CONFIG.wandb_run_name = "rhobot"
 ROCKET_LEAGUE_CONFIG.wandb_project_name = "prism"

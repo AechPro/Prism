@@ -4,6 +4,7 @@ from prism.experience import Timestep, TimestepBuffer
 from prism.factory import exp_buffer_factory
 import torch
 from tensordict import TensorDict
+from collections import deque
 
 
 class AsyncExperienceBuffer(object):
@@ -16,7 +17,8 @@ class AsyncExperienceBuffer(object):
         self._time_since_last_command_ping = 0.0
         self._n_collected = 0
         self._last_collect_call_timer = 0
-        self._time_between_collect_calls = 0.1
+        self._time_between_collect_calls = 0.01
+        self._hanging_prev = None
 
     def wait_for_config(self):
         config = self._redis_interface.get_config()
@@ -32,16 +34,15 @@ class AsyncExperienceBuffer(object):
 
     def run(self):
         self.wait_for_config()
-
         running = True
         while running:
             self._get_latest_timesteps()
             if self._n_collected < self._batch_size:
-                time.sleep(0.1)
+                time.sleep(0.01)
                 continue
 
-            self._experience_buffer.sample(batch_size=self._batch_size)
-            self._transmit_batch()
+            batch = self._experience_buffer.sample(batch_size=self._batch_size)
+            self._transmit_batch(batch)
 
             if time.perf_counter() - self._time_since_last_command_ping > self._time_between_command_pings:
                 current_command = self._redis_interface.get_current_command()
@@ -69,16 +70,17 @@ class AsyncExperienceBuffer(object):
         # print(self._n_collected)
         self._last_collect_call_timer = time.perf_counter()
 
-    def _transmit_batch(self):
+    def _transmit_batch(self, batch):
         serialized = []
-        serialized += self._serialize_tensor(self._experience_buffer._obs)
-        serialized += self._serialize_tensor(self._experience_buffer._next_obs)
-        serialized += self._serialize_tensor(self._experience_buffer._reward)
-        serialized += self._serialize_tensor(self._experience_buffer._nonterminal)
-        serialized += self._serialize_tensor(self._experience_buffer._gamma)
-        serialized += self._serialize_tensor(self._experience_buffer._action)
+        serialized += self._serialize_tensor(batch["observation"])
+        serialized += self._serialize_tensor(batch["next"]["observation"])
+        serialized += self._serialize_tensor(batch["next"]["reward"])
+        serialized += self._serialize_tensor(batch["nonterminal"])
+        serialized += self._serialize_tensor(batch["gamma"])
+        serialized += self._serialize_tensor(batch["action"])
 
         self._redis_interface.add_batch(serialized)
+
 
     def _serialize_tensor(self, tensor):
         n_elements = int(tensor.numel())
@@ -102,6 +104,8 @@ class AsyncExperienceBufferInterface(object):
         self._nonterminal = None
         self._gamma = None
         self._action = None
+        # Keep a small window of strong references to avoid weakref death across flush boundaries
+        self._strong_ref_window = deque(maxlen=32)
 
     def set_static_batch(self, batch):
         self._batch = batch
@@ -117,57 +121,72 @@ class AsyncExperienceBufferInterface(object):
 
     def extend(self, timestep):
         self._timestep_buffer.append(timestep)
-        if len(self._timestep_buffer) >= 100:
-            print("Transmitting timesteps...", len(self._timestep_buffer))
+        # Hold strong refs for prev/self/next to keep links alive until after serialization
+        self._strong_ref_window.append(timestep)
+        if timestep.prev is not None:
+            prev_ts = timestep.prev if isinstance(timestep.prev, Timestep) else timestep.prev()
+            if prev_ts is not None:
+                self._strong_ref_window.append(prev_ts)
+        if timestep.next is not None:
+            next_ts = timestep.next if isinstance(timestep.next, Timestep) else timestep.next()
+            if next_ts is not None:
+                self._strong_ref_window.append(next_ts)
+                
+        flush_threshold = 10
+        if len(self._timestep_buffer) >= flush_threshold:
+            # print("Transmitting timesteps...", len(self._timestep_buffer))
             self._redis_interface.submit_timesteps(self._timestep_buffer)
             self._timestep_buffer = []
 
     def sample(self, return_info=False):
-        serialized_batches = self._redis_interface.get_waiting_batches()
-        while serialized_batches is None and len(self._batch_buffer) == 0:
-            # print("Async buffer waiting for batch...")
+        serialized_batch = self._redis_interface.pop_latest_training_batch()
+        while serialized_batch is None:
             time.sleep(0.01)
-            serialized_batches = self._redis_interface.get_waiting_batches()
+            serialized_batch = self._redis_interface.pop_latest_training_batch()
 
-        if serialized_batches is not None:
-            for batch in serialized_batches:
-                self._batch_buffer.append(self._deserialize_batch(batch))
+        batch_tensors = self._deserialize_batch(serialized_batch)
 
-        batch = self._batch_buffer.pop(0)
-        self._obs.copy_(batch[0], non_blocking=True)
-        self._next_obs.copy_(batch[1], non_blocking=True)
-        self._reward.copy_(batch[2], non_blocking=True)
-        self._nonterminal.copy_(batch[3], non_blocking=True)
-        self._gamma.copy_(batch[4], non_blocking=True)
-        self._action.copy_(batch[5].long(), non_blocking=True)
+        self._obs.copy_(batch_tensors[0], non_blocking=True)
+        self._next_obs.copy_(batch_tensors[1], non_blocking=True)
+        self._reward.copy_(batch_tensors[2], non_blocking=True)
+        self._nonterminal.copy_(batch_tensors[3], non_blocking=True)
+        self._gamma.copy_(batch_tensors[4], non_blocking=True)
+        self._action.copy_(batch_tensors[5], non_blocking=True)
 
         if return_info:
-            return self._batch, 1
+            return self._batch, {}
         return self._batch
 
     def _deserialize_batch(self, serialized_batch):
         idx = 0
-
         obs, idx = self._deserialize_tensor(serialized_batch, idx)
         next_obs, idx = self._deserialize_tensor(serialized_batch, idx)
         reward, idx = self._deserialize_tensor(serialized_batch, idx)
         nonterminal, idx = self._deserialize_tensor(serialized_batch, idx)
         gamma, idx = self._deserialize_tensor(serialized_batch, idx)
         action, idx = self._deserialize_tensor(serialized_batch, idx)
+        nonterminal = nonterminal.to(dtype=torch.bool)
+        action = action.to(dtype=torch.long)
 
         if self._batch is None:
+            obs_buf = torch.zeros_like(obs, device=self.device)
+            next_obs_buf = torch.zeros_like(next_obs, device=self.device)
+            reward_buf = torch.zeros_like(reward, device=self.device)
+            nonterminal_buf = torch.zeros_like(nonterminal, device=self.device, dtype=torch.bool)
+            gamma_buf = torch.zeros_like(gamma, device=self.device)
+            action_buf = torch.zeros_like(action, device=self.device, dtype=torch.long)
+
             batch = TensorDict({
-                "observation": obs,
+                "observation": obs_buf,
 
                 "next": TensorDict({
-                    "observation": next_obs,
-                    "reward": reward}, device=self.device),
+                    "observation": next_obs_buf,
+                    "reward": reward_buf}, device=self.device),
 
-                "nonterminal": nonterminal,
-                "gamma": gamma,
-                "action": action.long()}, device=self.device)
+                "nonterminal": nonterminal_buf,
+                "gamma": gamma_buf,
+                "action": action_buf}, device=self.device)
             self.set_static_batch(batch)
-
         batch = (obs, next_obs, reward, nonterminal, gamma, action)
         return batch
 

@@ -123,6 +123,8 @@ class IDSActionSelector(ActionSelector):
         self.unsquish_function = unsquish_function
 
     def generate_action_probs(self, action_value_distribution, q_estimates, for_log=False):
+        # q_estimates shape: (B, A, E)
+        # action_value_distribution shape: (Q, B, A)
         q_shape = q_estimates.shape[:2]
 
         if self.unsquish_function is not None:
@@ -138,9 +140,10 @@ class IDSActionSelector(ActionSelector):
         regret = regret - (mean - self.lmbda * std)
         regret_sq = torch.square(regret).view(q_shape)
 
-        var_z = action_value_distribution.var(dim=0)
-        normalized_var_z = var_z / (self.epsilon + var_z.mean(dim=-1).unsqueeze(-1))
-        rho = torch.clamp(normalized_var_z, min=self.ids_rho_lower_bound)
+        center = action_value_distribution - action_value_distribution.mean(dim=0).unsqueeze(0)
+        z_var = torch.square(center).mean(dim=0)
+        normalized_z_var = z_var / (z_var.mean(dim=-1).unsqueeze(-1) + self.epsilon)
+        rho = torch.clamp(normalized_z_var, min=self.ids_rho_lower_bound)
 
         # info_gain = 1 + variance.view(q_shape) / rho
         info_gain = torch.log(1 + variance.view(q_shape) / rho) + self.epsilon
@@ -158,11 +161,11 @@ class IDSActionSelector(ActionSelector):
             self.loggables["Action Regret"] = regret
             self.loggables["Q Estimate Ensemble Mean"] = mean
             self.loggables["Q Estimate Ensemble Variance"] = variance
-            self.loggables["Return Distribution Variance"] = var_z
+            self.loggables["Return Distribution Variance"] = z_var
             self.loggables["Information Gain"] = info_gain
             self.loggables["IDS Scores"] = ids_scores
             self.loggables["Action Probs"] = action_probs
-            self.loggables["Normalized Return Distribution Variance"] = normalized_var_z
+            self.loggables["Normalized Return Distribution Variance"] = normalized_z_var
 
         return action_probs
 
